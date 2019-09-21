@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Padding Oracle Walkthrough – mmmds's blog</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Padding Oracle Walkthrough</h1>
+	<div><span class="post_list_date">2016-12-19</span></div>
+ 	<div class="entry">
+   	<p>Our goal is to gain access to admin account by padding oracle attack. Application allows us to register accounts then encrypted cookie is used to authenticate.</p>
+
+<p>This VM can be found on <a href="https://pentesterlab.com/exercises/padding_oracle">PentesterLab</a> or <a href="https://www.vulnhub.com/entry/pentester-lab-padding-oracle,174/">VulnHub</a></p>
+
+<ol>
+  <li>
+    <p>I started with analyzing length of blocks. I registered many accounts increasing their names’ length. I wrote the <a href="https://github.com/mmmds/walkthroughs/blob/master/padding-oracle/register.py">script</a> which registers accounts and displays authentication cookie and its size. Starting from 1 character and ending with 20 characters, I noticed that block size is 8 bytes.
+<img src="/images/padding_oracle_register.png" alt="" /></p>
+  </li>
+  <li>
+    <p>When I knew length of each block I was able to start decrypting cookies. I wrote <a href="https://github.com/mmmds/walkthroughs/blob/master/padding-oracle/decrypt.py">another script</a> which takes authentication cookie and decrypts every block except the first one. <br />
+<img src="/images/padding_oracle_decrypt.png" alt="" />
+This result was what I had expected. Cookie contained username, probably without any other authentication information.</p>
+  </li>
+  <li>
+    <p>What I already learned gave me an idea to register an account using some username very similar to ‘admin’ (with one character changed - ‘bdmin’ in my case) and change it into ‘admin’. I wrote <a href="https://github.com/mmmds/walkthroughs/blob/master/padding-oracle/modify.py">last script</a> which takes ‘bdmin’ cookie and modifies first character until valid admin cookie is generated.
+<img src="/images/padding_oracle_modify.png" alt="" /></p>
+  </li>
+  <li>
+    <p>In my browser I replaced authentication cookie with the new one. As the result, I gained access to an admin account.
+<img src="/images/padding_oracle_admin.png" alt="" /></p>
+  </li>
+</ol>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/padding-oracle-walkthrough/',
+		  'title': 'Padding Oracle Walkthrough'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Damn Vulnerable Web Sockets Walkthrough – mmmds's blog</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Damn Vulnerable Web Sockets Walkthrough</h1>
+	<div><span class="post_list_date">2017-02-14</span></div>
+ 	<div class="entry">
+   	<p>DVWS is similar to Damn Vulnerable Web Application, but communication between client and server is based on WebSockets. Source code is available <a href="https://github.com/interference-security/DVWS">here</a> , but it’s much easier to use prepared <a href="https://hub.docker.com/r/tssoffsec/dvws/">Docker image</a>.</p>
+
+<h2 id="websocketproxy">WebSocketProxy:</h2>
+<p>Brute force and SQL injection required some automatization to get results quickly. For Error SQL Injection I wrote my own WebSocket client in JavaScript, but for Brute force and Blind SQL Injection I took a different approach. I wanted to use Hydra and sqlmap, but I wasn’t able to connect to WebSocket. To solve this problem, I wrote proxy which allows communication between HTTP and WebSocket protocols. It’s an application written in Java with Jetty (HTTP server) and Tyrus (WebSocket client) libraries. Tools can make HTTP requests which are transferred to vulnerable WebSocket application. Project is available on <a href="https://github.com/mmmds/WebSocketProxy">GitHub</a>.</p>
+
+<h2 id="brute-force">Brute Force</h2>
+<p>To log in, we send JSON with login and password encoded by base64. In case of failure we receive</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;pre&gt;Incorrect username/password&lt;/pre&gt;
+</code></pre></div></div>
+
+<p>I downloaded wordlist with most common logins and passwords, then I converted these words into their base64 form.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>while read line; do echo $line | base64; done &lt; passwords.txt &gt; b64passwords.txt
+</code></pre></div></div>
+
+<p>I ran WebSocket proxy and Hydra to perform brute force attack. It was important to set -t 1 because this proxy doesn’t support parallel connections.
+In result I got login and password “YWRtaW4=” what decodes to “admin”
+<img src="/images/dvws_brute_force_2.png" alt="" />
+<img src="/images/dvws_brute_force_1.png" alt="" /></p>
+
+<h2 id="csrf">CSRF</h2>
+<p>There is no CSRF protection, so I prepared <a href="https://github.com/mmmds/walkthroughs/blob/master/dvws/csrf.html">website</a> with script which will connect to WebSocket and send password change request. Request consists of JSON with two password fields. The second field ‘cpass’ is not even checked, so we can skip it. Victim must be logged in, otherwise they will get error</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Message Authenticated session is required for changing password.
+</code></pre></div></div>
+
+<h2 id="file-inclusion">File Inclusion</h2>
+<p>In request, a filename to display is sent. I used Owasp ZAP to intercept request and put filename I wanted to display.
+<img src="/images/dvws_file_inclusion.png" alt="" /></p>
+
+<h2 id="error-sql-injection">Error SQL Injection</h2>
+<p>Both login and password are vulnerable. This vulnerability reveals error message in case of invalid query. I wrote <a href="https://github.com/mmmds/walkthroughs/blob/master/dvws/error_sql.html">my own client</a> in JavaScript which uses group by with having technique to get names of tables and columns and dump table users. This technique causes error in which some part of query is executed and returned to interface.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>admin admin
+bob bobbuilder
+jsmith password
+
+comments Name
+comments Comment
+users username
+users first_name
+users last_name
+users password
+cond_instances NAME
+cond_instances OBJECT_INSTANCE_BEGIN
+events_waits_current THREAD_ID
+events_waits_current EVENT_ID
+events_waits_current EVENT_NAME
+events_waits_current SOURCE
+events_waits_current TIMER_START
+events_waits_current TIMER_END
+events_waits_current TIMER_WAIT
+events_waits_current SPINS
+events_waits_current OBJECT_SCHEMA
+events_waits_current OBJECT_NAME
+events_waits_current OBJECT_TYPE
+</code></pre></div></div>
+
+<h2 id="blind-sql-injection">Blind SQL Injection</h2>
+<p>It’s similar to Error SQL Injection but this time there is no result from query. I decided to use sqlmap combined with WebSocketProxy to dump users table.
+<img src="/images/dvws_blind_3.png" alt="" />
+<img src="/images/dvws_blind_1.png" alt="" />
+<img src="/images/dvws_blind_2.png" alt="" /></p>
+
+<h2 id="command-execution">Command Execution</h2>
+
+<h2 id="reflected-xss">Reflected XSS</h2>
+
+<h2 id="stored-xss">Stored XSS</h2>
+<p>These vulnerabilities are nothing special in comparison with DVWA. Standard payloads work for them.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>127.0.0.1; cat /etc/passwd
+
+&lt;img src=x onerror="alert(1)"&gt;
+</code></pre></div></div>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/Damn-Vulnerable-Web-Sockets-walkthrough/',
+		  'title': 'Damn Vulnerable Web Sockets Walkthrough'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

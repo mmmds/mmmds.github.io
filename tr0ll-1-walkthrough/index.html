@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Tr0ll: 1 Walkthrough – mmmds's blog</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Tr0ll: 1 Walkthrough</h1>
+	<div><span class="post_list_date">2017-01-05</span></div>
+ 	<div class="entry">
+   	<p>According to VM’s description, we have to get root and read /root/Proof.txt file.</p>
+
+<p>This VM can be found <a href="https://www.vulnhub.com/entry/tr0ll-1,100/">here</a>.</p>
+
+<ol>
+  <li>
+    <p>First thing after running VM was to get its IP address. I used nmap to examine my local network.
+<img src="/images/tr0ll1_1.png" alt="" />
+I found IP and information that it runs FTP, SSH and HTTP services.</p>
+  </li>
+  <li>
+    <p>I started with HTTP but I found nothing more than irritating images. Then I moved to FTP what gave me a file with captured network packets.
+<img src="/images/tr0ll1_2.png" alt="" /></p>
+  </li>
+  <li>
+    <p>I ran Wireshark and loaded this file. While I was analyzing packets, one of them caught my attention. I didn’t want to believe that it was another worthless step so I tried to retrieve some information from it. 
+<img src="/images/tr0ll1_3.png" alt="" />
+Phrase “sup3rs3cr3tdirlol” appeared to be a directory name, accessible through HTTP and with a single file inside.</p>
+  </li>
+  <li>
+    <p>This single file called “roflmao” was binary. Firstly, I tried to analyze what this binary does. I didn’t find anything in its instructions, but one string seemed to be intereseting. 
+<img src="/images/tr0ll1_4.png" alt="" /></p>
+  </li>
+  <li>
+    <p>I continued analyzing but there was nothing at address 0x0856BF. It blocked me for a long time and then I thought that maybe I should check outside the binary. This address appeared to be valid, but in the browser and finally it gave me an access to another directory. I found potential username and passwords there.
+<img src="/images/tr0ll1_5.png" alt="" /></p>
+  </li>
+  <li>
+    <p>Hint about username was false unlike the hint about password, which was too literal to take it seriously. It took me some time but finally I found correct combination.
+<img src="/images/tr0ll1_6.png" alt="" /></p>
+  </li>
+  <li>
+    <p>I logged in through SSH but still I had to get root. I used OS version from welcome screen to find exploit https://www.exploit-db.com/exploits/37292. It worked without any problems and I got root in just a moment.
+<img src="/images/tr0ll1_7.png" alt="" /></p>
+  </li>
+</ol>
+
+<p>After I finished, I checked another solutions and found <a href="http://maep.dk/?id=bac36d54b96621008d5d6dbbfe8a2a64">more sophisticated way to get root</a></p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/tr0ll-1-walkthrough/',
+		  'title': 'Tr0ll: 1 Walkthrough'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

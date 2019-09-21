@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Luhn Walkthrough – mmmds's blog</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Luhn Walkthrough</h1>
+	<div><span class="post_list_date">2017-01-07</span></div>
+ 	<div class="entry">
+   	<p>In this exercise we have credit card checking web application to exploit. It takes cred card number and returns information whether our card is compromised or not.</p>
+
+<p>This VM can be found <a href="https://pentesterlab.com/exercises/luhn">here</a>.</p>
+
+<p>Firstly, I tried to understand behavior of checking mechanism. I noticed that number has to be valid according to <a href="https://en.wikipedia.org/wiki/Luhn_algorithm">Luhn algorithm</a>. For valid number (eg. <em>88888888</em>) I received “<em>We have no information that your CC has been compromised.</em>” and for invalid (eg. <em>12345</em>)  “<em>Invalid CC</em>”.</p>
+
+<p>Behavior for odd number of digits is a little bit more complex. Application adds <em>0</em> at the end of the number, so for example both <em>5432193</em> and <em>54321930</em> works. I also found that every non digit character is just ignored by the validation mechanism, for example “<em>a 5 b 4 x 321!!930</em>” is still a valid number.</p>
+
+<p>I assumed that when number is valid, application looks for it in database. I started to look for SQL Injection. I used what I had learned about this mechanism and prepared number “<em>543219’ or 3!=0 –</em>”. For validator it was still valid <em>54321930</em> but for SQL query the whole input was taken and I received “<em>Your CC has been compromised :/</em>”.
+<img src="/images/luhn_1.png" alt="" /></p>
+
+<p>Obviously, it was blind SQL injection which I had to exploit. I handcrafted my own <a href="https://github.com/mmmds/walkthroughs/blob/master/luhn/blind_luhn.py">script</a> to dump database. It uses Luhn algorithm to make sure that prepared query will be successfully validated on server side.
+Key is stored in database.
+<img src="/images/luhn_2.png" alt="" /></p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/luhn-walkthrough/',
+		  'title': 'Luhn Walkthrough'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
