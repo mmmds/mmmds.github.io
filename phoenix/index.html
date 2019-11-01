@@ -1291,7 +1291,7 @@ gef➤  x/x 0x8049e50
 0x8049e50 &lt;fgets@got.plt&gt;:      0xf7fb647e
 </code></pre></div></div>
 
-<p>With these details we can prepare the rest of the exploit. For calculation of byte to write it is assumed that it’s always executed from “127.0.0.1” and a 5 digit port.</p>
+<p>With these details we can prepare the rest of the exploit. For calculation of byte to write it is assumed that it’s always executed from <code class="highlighter-rouge">127.0.0.1</code> and a 5 digit port.</p>
 <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import socket
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
