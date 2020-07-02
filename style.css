@@ -5,7 +5,7 @@ body {
 	padding: 1em;
 	font-family: Monaco, monospace;
 	font-family: Arial, Helvetica, sans-serif;
-	color: #454545;
+	color: #202020;
 	background-color: #fefefe;
 }
 
@@ -79,11 +79,27 @@ img {
   	max-width: 100%;
 }
 
+.post-external-link {
+	font-weight: bold;
+	font-size: 13px;
+}
+
+code {
+	font-size: 13px;
+	font-family: monospace;
+	background-color: #e0e0e0;
+	color: #191919;
+}
+
+code.highlighter-rouge {
+	padding: 0px 1px;
+}
+
 pre.highlight {
-	background-color: #ffffff;
+	background-color: #e0e0e0;
 	padding: 0.5em;
 	margin: 1.5em 0.5em 1.5em 0.5em;
-	font-size: 14px;
 	border: solid 1px #000000;
 	overflow: scroll;
 }
+
