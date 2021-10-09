@@ -524,7 +524,12 @@ print "{} == {}\n{}".format(pmkid, new_pmkid, pmkid == new_pmkid)
 
 <h3 id="decrypting-data-">Decrypting data <a name="wpa-decrypting-data"></a></h3>
 
-<p>When we have a valid passphrase and captured data (with handshake), it’s possible to decrypt it in Wireshark.</p>
+<p>When we have a valid passphrase and captured data (with handshake), it’s possible to decrypt it using <code class="highlighter-rouge">airdecap-ng</code></p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>airdecap-ng -e &lt;essid&gt; -p &lt;password&gt; dump.cap
+</code></pre></div></div>
+
+<p>or do it directly in Wireshark.</p>
 
 <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Edit -&gt; Preferences -&gt; Protocols -&gt; IEEE 802.11 -&gt; Decryption keys: edit -&gt; wpa-pwd
 </code></pre></div></div>
