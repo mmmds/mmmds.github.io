@@ -103,3 +103,10 @@ pre.highlight {
 	overflow: scroll;
 }
 
+div > ul > li {
+	margin-top: 0.5em;
+}
+
+li {
+	margin: 0.30em;
+}
