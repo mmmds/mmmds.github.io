@@ -127,7 +127,8 @@ index b9a2e014..4b5a9e16 100644
 
 <p>To make the fuzzing work, I had to run the server and make the fuzzed client connect to it. Hopefully, all necessary options were already implemented as command line parameters.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ./teeworlds_srv -f config.cfg
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ echo 'sv_map 666' &gt; config.cfg
+$ ./teeworlds_srv -f config.cfg
 </code></pre></div></div>
 <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ./afl-fuzz -f /home/mmm/teeworlds/build/data/maps/666.map -i - -o /home/mmm/output -t 5000 -- ./teeworlds "connect 127.0.0.1" "gfx_fullscreen 0" "gfx_screen_height 240" "gfx_screen_width 360"
 </code></pre></div></div>
