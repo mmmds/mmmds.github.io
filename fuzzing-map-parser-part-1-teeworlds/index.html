@@ -269,7 +269,7 @@ WRITE of size 4 at 0x7ffffffd8f78 thread T0
 
 <p><del>It looked promising, however, I didn’t find a working way to exploit it, and as it wasn’t the main area of my effort I postponed it for another time.</del></p>
 
-<p>Update: Is a friend pointed out and put me in the right direction, I did a mistake analyzing an optimized code (which was weird for a project compiled with the <code class="highlighter-rouge">-O0</code> flag). However, the <a href="https://www.teeworlds.com/?page=downloads">official build</a> does not have an optimized code that broke exploitation attempts. Additionally, the binary even has the stack protection disabled what makes it even easier.</p>
+<p>Update: Is a friend pointed out and put me in the right direction, I did a mistake analyzing an optimized code (<del>which was weird for a project compiled with the <code class="highlighter-rouge">-O0</code> flag</del> which was caused by using a release target in cmake that enables optimization). However, the <a href="https://www.teeworlds.com/?page=downloads">official build</a> does not have an optimized code that broke exploitation attempts. Additionally, the binary even has the stack protection disabled what makes it even easier.</p>
 
 <div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ checksec --file=teeworlds 
 RELRO           STACK CANARY      NX            PIE             RPATH      RUNPATH      Symbols         FORTIFY Fortified       Fortifiable     FILE
