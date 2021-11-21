@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Fuzzing game map parsers, part 2 - Assault Cube – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Fuzzing game map parsers, part 2 - Assault Cube</h1>
+	<div><span class="post_list_date">2021-11-21</span></div>
+ 	<div class="entry">
+   	<p><strong>tl;dr</strong>: Using AFLplusplus for fuzzing a map parser in Assault Cube. Two approaches, the thorough one resulted in two crashes and one non-security bug detected accidentally.</p>
+
+<h2 id="intro">Intro</h2>
+
+<p>This is a continuation of fuzzing map parsers in games. For the second target, I chose Assault Cube, which is an open-source multiplayer FPS game, available on many platforms. I didn’t change the approach or setup in general, so I’ll get to the point.</p>
+
+<h2 id="code-changes">Code changes</h2>
+
+<p>For the first (quick) approach, I extracted a map parsing function. Also, it was necessary to disable decompression, because originally maps are gzip compressed but I decided to take the raw version for fuzzing input. To make fuzzing independent of randomized values, I overwrote with a fixed value all places where random generated was seeded.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gh">diff --git a/source/src/main.cpp b/source/src/main.cpp
+index 9d5c4d7ef..a1db42bf8 100644
+</span><span class="gd">--- a/source/src/main.cpp
+</span><span class="gi">+++ b/source/src/main.cpp
+</span><span class="p">@@ -1189,0 +1190,7 @@</span> int main(int argc, char **argv)
+<span class="gi">+    __AFL_INIT();
++    while (__AFL_LOOP(10000)) {
++        serverslice(0);
++    }
++    exit(0);
++
++
+</span><span class="gh">diff --git a/source/src/server.cpp b/source/src/server.cpp
+index a7fdc3fb4..7237ecfb3 100644
+</span><span class="gd">--- a/source/src/server.cpp
+</span><span class="gi">+++ b/source/src/server.cpp
+</span><span class="p">@@ -4388,0 +4389,5 @@</span> void serverslice(uint timeout)   // main server update, called from cube main lo
+<span class="gi">+    servermap *localmap = NULL; localmap = new servermap("ac_666", "packages/maps/official/");
++    localmap-&gt;load();   
++    return;
+</span><span class="gh">diff --git a/source/src/serverfiles.h b/source/src/serverfiles.h
+index 323dc5b83..9c80d1a73 100644
+</span><span class="gd">--- a/source/src/serverfiles.h
+</span><span class="gi">+++ b/source/src/serverfiles.h
+</span><span class="p">@@ -185 +185 @@</span> struct servermap  // in-memory version of a map file on a server
+<span class="gd">-            f = opengzfile(filename, "rb");
+</span><span class="gi">+            f = openfile(filename, "rb");
+</span></code></pre></div></div>
+
+<p>For the second (thorough) approach I additionally added exiting after rendering a fixed number of frames.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gh">diff --git a/source/src/main.cpp b/source/src/main.cpp
+index 9d5c4d7ef..0a1350e5f 100644
+</span><span class="gd">--- a/source/src/main.cpp
+</span><span class="gi">+++ b/source/src/main.cpp
+</span><span class="p">@@ -1530,0 +1531,2 @@</span> int main(int argc, char **argv)
+<span class="gi">+        printf("FRAMES == %d\n", frames);
++        if (frames == 10) exit(0);
+</span></code></pre></div></div>
+
+<h2 id="results">Results</h2>
+<p>The first approach didn’t result in any crashes. Fortunately, the second approach was more fruitful - a few crashes and hangs. After discarding repeated cases and those ones which I could not reproduce, I was left with two crashes:</p>
+
+<ul>
+  <li><a href="https://github.com/assaultcube/AC/issues/410">https://github.com/assaultcube/AC/issues/410</a></li>
+  <li><a href="https://github.com/assaultcube/AC/issues/411">https://github.com/assaultcube/AC/issues/411</a></li>
+</ul>
+
+<p>They didn’t seem to be good candidates for further exploitation, but I encountered one interesting issue. The game implements displaying a stack track when an error occurs. Sometimes, the game did not exit well and was hanging on printing a stack. I decided to look deeper into it.</p>
+
+<p>This mechanism is implemented as a signal handler:</p>
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>struct signalbinder
+{
+    static void stackdumper(int sig)
+    {
+        printf("stacktrace:\n");
+#if !defined(STANDALONE)
+        if(clientlogfile) clientlogfile-&gt;printf("stacktrace\n");
+#endif
+        const int BTSIZE = 25;
+        void *array[BTSIZE];
+        int n = backtrace(array, BTSIZE);
+        char **symbols = backtrace_symbols(array, n);
+        for(int i = 0; i &lt; n; i++)
+        {
+            printf("%s\n", symbols[i]);
+#if !defined(STANDALONE)
+            if(clientlogfile) clientlogfile-&gt;printf("%s\n", symbols[i]);
+#endif
+        }
+        free(symbols);
+
+        fatal("AssaultCube error (%d)", sig);
+
+    }
+
+    signalbinder()
+    {
+        // register signals to dump the stack if they are raised,
+        // use constructor for early registering
+        signal(SIGSEGV, stackdumper);
+        signal(SIGFPE, stackdumper);
+        signal(SIGILL, stackdumper);
+        signal(SIGBUS, stackdumper);
+        signal(SIGSYS, stackdumper);
+        signal(SIGABRT, stackdumper);
+    }
+};
+</code></pre></div></div>
+
+<p>After attaching a debugger, I noticed that the execution was stuck inside <code class="highlighter-rouge">backtrace_symbols</code>.</p>
+
+<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(gdb) bt
+#0  __lll_lock_wait_private (futex=0x7f5c91c98b80 &lt;main_arena&gt;) at ./lowlevellock.c:35
+#1  0x00007f5c91b4a4ab in __GI___libc_malloc (bytes=bytes@entry=2069) at malloc.c:3064
+#2  0x00007f5c91bdd3e6 in __backtrace_symbols (array=0x7fff239d6860, size=&lt;optimized out&gt;) at backtracesyms.c:69
+#3  0x0000000000539024 in signalbinder::stackdumper (sig=6) at tools.cpp:390
+#4  &lt;signal handler called&gt;
+#5  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+#6  0x00007f5c91ad2859 in __GI_abort () at abort.c:79
+#7  0x00007f5c91b3d3ee in __libc_message (action=action@entry=do_abort, fmt=fmt@entry=0x7f5c91c67285 "%s\n")
+    at ../sysdeps/posix/libc_fatal.c:155
+#8  0x00007f5c91b4547c in malloc_printerr (str=str@entry=0x7f5c91c6543a "corrupted size vs. prev_size") at malloc.c:5347
+#9  0x00007f5c91b45aeb in unlink_chunk (p=p@entry=0x1326f80, av=0x7f5c91c98b80 &lt;main_arena&gt;) at malloc.c:1454
+#10 0x00007f5c91b45c2f in malloc_consolidate (av=av@entry=0x7f5c91c98b80 &lt;main_arena&gt;) at malloc.c:4502
+#11 0x00007f5c91b47160 in _int_free (av=0x7f5c91c98b80 &lt;main_arena&gt;, p=0xf9b550, have_lock=&lt;optimized out&gt;) at malloc.c:4400
+#12 0x00007f5c9232a1b8 in _XFreeDisplayStructure () from /lib/x86_64-linux-gnu/libX11.so.6
+#13 0x00007f5c923173a1 in XCloseDisplay () from /lib/x86_64-linux-gnu/libX11.so.6
+#14 0x00007f5c92286d45 in ?? () from /lib/x86_64-linux-gnu/libSDL2-2.0.so.0
+#15 0x00007f5c92259886 in ?? () from /lib/x86_64-linux-gnu/libSDL2-2.0.so.0
+#16 0x00007f5c921c9b8a in ?? () from /lib/x86_64-linux-gnu/libSDL2-2.0.so.0
+#17 0x00007f5c921c9c7c in ?? () from /lib/x86_64-linux-gnu/libSDL2-2.0.so.0
+#18 0x000000000047842b in cleanup (msg=0x7fff239d75c0 "AssaultCube error (11) ()\n") at main.cpp:29
+#19 0x0000000000478a35 in fatal (s=0x5bbc98 "AssaultCube error (%d)") at main.cpp:72
+#20 0x00000000005390cc in signalbinder::stackdumper (sig=11) at tools.cpp:400
+#21 &lt;signal handler called&gt;
+#22 0x000000000046ff7e in rendermapmodels () at entities.cpp:110
+#23 0x00000000004a5c46 in drawminimap (w=1440, h=792) at rendergl.cpp:859
+#24 0x00000000004a69a3 in gl_drawframe (w=1440, h=792, changelod=0.455351174, curfps=27.3210697, elapsed=102) at rendergl.cpp:1026
+#25 0x0000000000480c12 in main (argc=2, argv=0x7fff239d8488) at main.cpp:1537
+</code></pre></div></div>
+
+<p>Apparently, this function uses <code class="highlighter-rouge">malloc</code> internally which is not a safe function (<a href="https://man7.org/linux/man-pages/man7/signal-safety.7.html">signal-safety</a>) to use in a signal handler, and as a result it causes “undefined behavior”. As I googled this issue, it is not uncommon that in such situations calling <code class="highlighter-rouge">malloc</code> causes a deadlock.</p>
+
+<p>I reported this problem as well:</p>
+
+<ul>
+  <li><a href="https://github.com/assaultcube/AC/issues/413">https://github.com/assaultcube/AC/issues/413</a></li>
+</ul>
+
+<h2 id="summary">Summary</h2>
+<p>Fuzzing a map parser again revealed bugs in the code, however this time the number of crashes was smaller. The quicker and less thorough approach turned out to be not effective this time, and deeper but slower fuzzing turned out to be better this time. Also, quite accidentally, I learned a new thing about signal handling.</p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/fuzzing-map-parser-part-2-assault-cube/',
+		  'title': 'Fuzzing game map parsers, part 2 - Assault Cube'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
