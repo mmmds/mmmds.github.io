@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Fuzzing game map parsers, part 3 - ezQuake – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div>mmmds's blog</div>	
+         	<nav>
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a>
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Fuzzing game map parsers, part 3 - ezQuake</h1>
+	<div><span class="post_list_date">2021-12-28</span></div>
+ 	<div class="entry">
+   	<p><strong>tl;dr</strong>: Fuzzing a map parser in ezQuake using AFLplusplus. Eleven crashes, including memory corruption vulnerabilities.</p>
+
+<h2 id="intro">Intro</h2>
+
+<p>For my third target, I decided to choose <a href="https://github.com/ezQuake/ezquake-source">ezQuake</a> which is a Quake source port oriented on multiplayer. This time I resigned from two approaches and focused purely on the slowest one to achieve the best coverage.</p>
+
+<h2 id="preparation">Preparation</h2>
+
+<p>The game has a built-in console and implements a command to load a given map. Unfortunately, it is not achievable from command line arguments. I modified the code to run the desired command immediately and stop execution when a map is parsed and rendered.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>diff --git a/cl_main.c b/cl_main.c
+index 1d0180aa..8c1bf77d 100644
+--- a/cl_main.c
++++ b/cl_main.c
+@@ -2389,6 +2389,10 @@ void CL_Frame (double time)
+                                usercmd_t dummy;
+                                IN_Move(&amp;dummy);
+                        }
++
++                       if (FUZZ_STATUS == 0) { Cmd_ExecuteStringEx(&amp;cbuf_main, "map dm666"); FUZZ_STATUS = 1; }
++                       else if (FUZZ_STATUS == 20) { exit(0); }
++                       else if (FUZZ_STATUS &gt; 2) { FUZZ_STATUS++; }
+                }
+                else
+                {
+diff --git a/cmodel.c b/cmodel.c
+index 55bf564e..fe3f811d 100644
+--- a/cmodel.c
++++ b/cmodel.c
+@@ -1158,7 +1158,7 @@ cmodel_t *CM_LoadMap (char *name, qbool clientload, unsigned *checksum, unsigned
+        int required_length = 0;
+        int filelen = 0;
+ 
+-       if (map_name[0]) {
++       if (map_name[0] &amp;&amp; 1 == 2) {
+                assert(!strcmp(name, map_name));
+ 
+                if (checksum)
+@@ -1284,7 +1284,7 @@ cmodel_t *CM_LoadMap (char *name, qbool clientload, unsigned *checksum, unsigned
+        strlcpy (map_name, name, sizeof(map_name));
+ 
+        Q_free(padded_buf);
+-
++       FUZZ_STATUS += 1;
+        return &amp;map_cmodels[0];
+ }
+diff --git a/sys_posix.c b/sys_posix.c
+index af99928f..f2e1f0a4 100644
+--- a/sys_posix.c
++++ b/sys_posix.c
+@@ -48,6 +48,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ #include "server.h"
+ #include "pcre.h"
+ 
++#pragma clang optimize off
++#pragma GCC            optimize("O0")
+ 
+ // BSD only defines FNDELAY:
+ #ifndef O_NDELAY
+@@ -327,7 +329,7 @@ int main(int argc, char **argv)
+ 
+        if (COM_CheckParm("-nostdout"))
+                sys_nostdout.value = 1;
+-
++__AFL_INIT();
+        Host_Init (argc, argv, 128 * 1024 * 1024);
+ 
+        oldtime = Sys_DoubleTime ();
+</code></pre></div></div>
+
+<h2 id="performance-enhancements">Performance enhancements</h2>
+
+<p>Despite the typical AFL-related optimization techniques, I found out about one more technique in a j00ru’s talk <a href="https://j00ru.vexillium.org/talks/blackhat-eu-effective-file-format-fuzzing-thoughts-techniques-and-results">https://j00ru.vexillium.org/talks/blackhat-eu-effective-file-format-fuzzing-thoughts-techniques-and-results</a> which is specifically related to GUI applications.</p>
+
+<p>Xvfb is a display server that performs all graphics-related operations in virtual memory its effects are not reflected on the actual screen. As the result, it speeds up execution. Games heavily rely on graphical operations, thus it was a good choice because finally, I achieved about 50% increased execution speed (from ridiculously slow 1.5 exec/s to still ridiculously slow 2.1 exec/s).</p>
+
+<h2 id="corpus">Corpus</h2>
+
+<p>Quake maps are quite big as for AFL’s requirements, so I chose the smallest available map as the initial corpus.</p>
+
+<h2 id="fuzzing">Fuzzing</h2>
+
+<p>The fuzzing was run in a typical way but it was preceded by setting up Xvfb:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Xvfb -noreset :99 &amp;
+export DISPLAY=:99
+</code></pre></div></div>
+
+<h2 id="crashes">Crashes</h2>
+
+<p>About 24 hours of fuzzing led to finding 11 unique crashes. A brief analysis of them didn’t uncover any interesting exploitation possibilities, thus I moved on.</p>
+
+<p>I reported all crashes in a single issue on GitHub: <a href="https://github.com/ezQuake/ezquake-source/issues/615">https://github.com/ezQuake/ezquake-source/issues/615</a>. Some details from the analysis are also included in the issue.</p>
+
+<p>A maintaining developer amazingly quickly acknowledged the issue and prepared a fix within a month.</p>
+
+<h2 id="summary">Summary</h2>
+
+<p>Fuzzing a map parser in ezQuake resulted in findings 11 bugs. Even though I didn’t find a way to exploit them, they at least can cause a denial of service of a client connecting to a malicious server.</p>
+
+<p>The whole endeavor showed me that game maps are complex file formats and because each game uses a unique format, developers cannot rely on well-tested libraries and bugs are more likely to happen. At this point, I’m deciding to finish the series and focus on something else, but I may come back to this topic in the future.</p>
+
+<p><br />
+<br />
+Credits to Lusia Kundel, LogicalTrust for the initial cooperation!</p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/fuzzing-map-parser-part-3-ezquake/',
+		  'title': 'Fuzzing game map parsers, part 3 - ezQuake'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
