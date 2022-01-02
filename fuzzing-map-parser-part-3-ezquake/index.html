@@ -32,7 +32,7 @@
 
 <h2 id="intro">Intro</h2>
 
-<p>For my third target, I decided to choose <a href="https://github.com/ezQuake/ezquake-source">ezQuake</a> which is a Quake source port oriented on multiplayer. This time I resigned from two approaches and focused purely on the slowest one to achieve the best coverage.</p>
+<p>For my third target, I decided to choose <a href="https://github.com/ezQuake/ezquake-source">ezQuake</a> which is a Quake source port oriented on multiplayer. This time I resigned from two approaches: faster but with smaller coverage (stop processing a map after parsing it) and more thorough but slower (actually render a map). I focused only on the second approach because for previous targets (<a href="/fuzzing-map-parser-part-1-teeworlds/">Teeworlds</a>, <a href="/fuzzing-map-parser-part-2-assault-cube/">AssaultCube</a>) this one turned out to be more effective.</p>
 
 <h2 id="preparation">Preparation</h2>
 
@@ -104,16 +104,15 @@ index af99928f..f2e1f0a4 100644
 
 <p>Xvfb is a display server that performs all graphics-related operations in virtual memory its effects are not reflected on the actual screen. As the result, it speeds up execution. Games heavily rely on graphical operations, thus it was a good choice because finally, I achieved about 50% increased execution speed (from ridiculously slow 1.5 exec/s to still ridiculously slow 2.1 exec/s).</p>
 
-<h2 id="corpus">Corpus</h2>
+<p>Integration with the fuzzer was very easy. It just required running the display server and updating the DISPLAY environment variable.</p>
 
-<p>Quake maps are quite big as for AFL’s requirements, so I chose the smallest available map as the initial corpus.</p>
-
-<h2 id="fuzzing">Fuzzing</h2>
-
-<p>The fuzzing was run in a typical way but it was preceded by setting up Xvfb:</p>
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Xvfb -noreset :99 &amp;
 export DISPLAY=:99
 </code></pre></div></div>
+
+<h2 id="corpus">Corpus</h2>
+
+<p>Quake maps are quite big as for AFL’s requirements, so I was experimenting with different sets based on maps offered by <a href="https://github.com/nQuake/client-linux">nQuake</a> which is a package combining ezQuake as a bare client and various data files (maps, textures, config files, etc.) making the game ready to play out of the box. I started with a corpus containing only the smallest map and I was gradually increasing the corpus until all maps were used.</p>
 
 <h2 id="crashes">Crashes</h2>
 
@@ -131,7 +130,7 @@ export DISPLAY=:99
 
 <p><br />
 <br />
-Credits to Lusia Kundel, LogicalTrust for the initial cooperation!</p>
+Credits to Lusia Kundel, <a href="https://logicaltrust.net">LogicalTrust</a> for the initial cooperation!</p>
 
  	</div>
 </article>
