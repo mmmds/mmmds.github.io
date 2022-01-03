@@ -288,7 +288,7 @@ Thread 1 "teeworlds" received signal SIGSEGV, Segmentation fault.
 
 <p>I decided to exploit it just for fun. Unfortunately, there were no other bugs that could be chained to bypass ASLR. For the purpose of the exercise, I continued with ASLR disabled and use ret2libc technique to pop a calc executing <code class="language-plaintext highlighter-rouge">system("/usr/bin/xcalc")</code>.</p>
 
-<p>To succeed with ret2libc exploited, I required the following things:</p>
+<p>To succeed with ret2libc exploit, I required the following things:</p>
 
 <ol>
   <li>Gadget with <code class="language-plaintext highlighter-rouge">ret</code> and <code class="language-plaintext highlighter-rouge">pop rdi; ret</code> instructions to align the stack, load the parameter for the <code class="language-plaintext highlighter-rouge">system</code> function and jump to it
