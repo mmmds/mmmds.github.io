@@ -110,3 +110,8 @@ div > ul > li {
 li {
 	margin: 0.30em;
 }
+
+span.ptr {
+	padding-left: 0.5em;
+	padding-right: 0.5em;
+}
