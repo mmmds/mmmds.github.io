@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -26,27 +26,18 @@
     <div id="main" role="main" class="container">
       <article class="page">
 
-  <div class="entry">
-    <ul>
-  <li>
+  <div class="projects">
     <p><a href="https://github.com/mmmds/sif">Socket Injecting Fuzzer</a> - Dumb fuzzer, focused on applications working in the client-server architecture. It uses the <code class="language-plaintext highlighter-rouge">LD_PRELOAD</code> trick to hook network sending functions (<code class="language-plaintext highlighter-rouge">sendto</code>, <code class="language-plaintext highlighter-rouge">send</code>, <code class="language-plaintext highlighter-rouge">write</code> etc.) and mutates outgoing data using radamsa.</p>
-  </li>
-  <li>
-    <p><a href="https://github.com/mmmds/WirelessDiscoverCrackScan">Wireless Discover Crack Scan</a> - CLI tool, utilizes known WiFi-related security tools to automate the process of discovering wireless networks, cracking passwords, and scanning ports and services. It automatically selects targets and runs all suitable attacks. Results are stored in a local database, so they can be viewed anytime or exported for further usage.</p>
-  </li>
-  <li>
-    <p><a href="https://portswigger.net/bappstore/42680f96fc214513bc5211b3f25fd98b">HTTP Mock</a> - Burp extension, provides mock responses that can be customized, based on the real ones.</p>
-  </li>
-  <li>
-    <p><a href="https://portswigger.net/bappstore/858352a27e6e4a6caa802e61fdeb7dd4">ExifTool Scanner</a> - Burp extension, reads metadata from various filetypes (JPEG, PNG, PDF, DOC, XLS and much more) using ExifTool. Results are presented as Passive scan issues and Message editor tabs.</p>
-  </li>
-  <li>
-    <p><a href="https://portswigger.net/bappstore/9b5c532966ca4d5eb13c09c72ba7aac2">Match/Replace Session Action</a> - Burp extension, provides match and replace function as Session Handling Rule. The main purpose was to easily replace CSRF tokens in headers and body parameters performing Compare Site Maps.</p>
-  </li>
-  <li>
-    <p><a href="https://github.com/mmmds/WebSocketProxy">WebSocket Proxy</a> - CLI tool, creates an HTTP bridge to a websocket service. The purpose was to use HTTP oriented tools (eg. Burp Scanner, sqlmap, nikto etc.) against websockets.</p>
-  </li>
-</ul>
+
+<p><a href="https://github.com/mmmds/WirelessDiscoverCrackScan">Wireless Discover Crack Scan</a> - CLI tool, utilizes known WiFi-related security tools to automate the process of discovering wireless networks, cracking passwords, and scanning ports and services. It automatically selects targets and runs all suitable attacks. Results are stored in a local database, so they can be viewed anytime or exported for further usage.</p>
+
+<p><a href="https://portswigger.net/bappstore/42680f96fc214513bc5211b3f25fd98b">HTTP Mock</a> - Burp extension, provides mock responses that can be customized, based on the real ones.</p>
+
+<p><a href="https://portswigger.net/bappstore/858352a27e6e4a6caa802e61fdeb7dd4">ExifTool Scanner</a> - Burp extension, reads metadata from various filetypes (JPEG, PNG, PDF, DOC, XLS and much more) using ExifTool. Results are presented as Passive scan issues and Message editor tabs.</p>
+
+<p><a href="https://portswigger.net/bappstore/9b5c532966ca4d5eb13c09c72ba7aac2">Match/Replace Session Action</a> - Burp extension, provides match and replace function as Session Handling Rule. The main purpose was to easily replace CSRF tokens in headers and body parameters performing Compare Site Maps.</p>
+
+<p><a href="https://github.com/mmmds/WebSocketProxy">WebSocket Proxy</a> - CLI tool, creates an HTTP bridge to a websocket service. The purpose was to use HTTP oriented tools (eg. Burp Scanner, sqlmap, nikto etc.) against websockets.</p>
 
 
   </div>

@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -36,12 +36,12 @@
 <h2 id="brute-force">Brute Force</h2>
 <p>To log in, we send JSON with login and password encoded by base64. In case of failure we receive</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;pre&gt;Incorrect username/password&lt;/pre&gt;
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;pre&gt;Incorrect username/password&lt;/pre&gt;
 </code></pre></div></div>
 
 <p>I downloaded wordlist with most common logins and passwords, then I converted these words into their base64 form.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>while read line; do echo $line | base64; done &lt; passwords.txt &gt; b64passwords.txt
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>while read line; do echo $line | base64; done &lt; passwords.txt &gt; b64passwords.txt
 </code></pre></div></div>
 
 <p>I ran WebSocket proxy and Hydra to perform brute force attack. It was important to set -t 1 because this proxy doesn’t support parallel connections.
@@ -52,7 +52,7 @@ In result I got login and password “YWRtaW4=” what decodes to “admin”
 <h2 id="csrf">CSRF</h2>
 <p>There is no CSRF protection, so I prepared <a href="https://github.com/mmmds/walkthroughs/blob/master/dvws/csrf.html">website</a> with script which will connect to WebSocket and send password change request. Request consists of JSON with two password fields. The second field ‘cpass’ is not even checked, so we can skip it. Victim must be logged in, otherwise they will get error</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Message Authenticated session is required for changing password.
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Message Authenticated session is required for changing password.
 </code></pre></div></div>
 
 <h2 id="file-inclusion">File Inclusion</h2>
@@ -62,7 +62,7 @@ In result I got login and password “YWRtaW4=” what decodes to “admin”
 <h2 id="error-sql-injection">Error SQL Injection</h2>
 <p>Both login and password are vulnerable. This vulnerability reveals error message in case of invalid query. I wrote <a href="https://github.com/mmmds/walkthroughs/blob/master/dvws/error_sql.html">my own client</a> in JavaScript which uses group by with having technique to get names of tables and columns and dump table users. This technique causes error in which some part of query is executed and returned to interface.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>admin admin
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>admin admin
 bob bobbuilder
 jsmith password
 
@@ -100,7 +100,7 @@ events_waits_current OBJECT_TYPE
 <h2 id="stored-xss">Stored XSS</h2>
 <p>These vulnerabilities are nothing special in comparison with DVWA. Standard payloads work for them.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>127.0.0.1; cat /etc/passwd
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>127.0.0.1; cat /etc/passwd
 
 &lt;img src=x onerror="alert(1)"&gt;
 </code></pre></div></div>

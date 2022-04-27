@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -38,45 +38,45 @@
 
 <p>For the first (quick) approach, I extracted a map parsing function. Also, it was necessary to disable decompression, because originally maps are gzip compressed but I decided to take the raw version for fuzzing input. To make fuzzing independent of randomized values, I overwrote with a fixed value all places where random generated was seeded.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gh">diff --git a/source/src/main.cpp b/source/src/main.cpp
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>diff --git a/source/src/main.cpp b/source/src/main.cpp
 index 9d5c4d7ef..a1db42bf8 100644
-</span><span class="gd">--- a/source/src/main.cpp
-</span><span class="gi">+++ b/source/src/main.cpp
-</span><span class="p">@@ -1189,0 +1190,7 @@</span> int main(int argc, char **argv)
-<span class="gi">+    __AFL_INIT();
+--- a/source/src/main.cpp
++++ b/source/src/main.cpp
+@@ -1189,0 +1190,7 @@ int main(int argc, char **argv)
++    __AFL_INIT();
 +    while (__AFL_LOOP(10000)) {
 +        serverslice(0);
 +    }
 +    exit(0);
 +
 +
-</span><span class="gh">diff --git a/source/src/server.cpp b/source/src/server.cpp
+diff --git a/source/src/server.cpp b/source/src/server.cpp
 index a7fdc3fb4..7237ecfb3 100644
-</span><span class="gd">--- a/source/src/server.cpp
-</span><span class="gi">+++ b/source/src/server.cpp
-</span><span class="p">@@ -4388,0 +4389,5 @@</span> void serverslice(uint timeout)   // main server update, called from cube main lo
-<span class="gi">+    servermap *localmap = NULL; localmap = new servermap("ac_666", "packages/maps/official/");
+--- a/source/src/server.cpp
++++ b/source/src/server.cpp
+@@ -4388,0 +4389,5 @@ void serverslice(uint timeout)   // main server update, called from cube main lo
++    servermap *localmap = NULL; localmap = new servermap("ac_666", "packages/maps/official/");
 +    localmap-&gt;load();   
 +    return;
-</span><span class="gh">diff --git a/source/src/serverfiles.h b/source/src/serverfiles.h
+diff --git a/source/src/serverfiles.h b/source/src/serverfiles.h
 index 323dc5b83..9c80d1a73 100644
-</span><span class="gd">--- a/source/src/serverfiles.h
-</span><span class="gi">+++ b/source/src/serverfiles.h
-</span><span class="p">@@ -185 +185 @@</span> struct servermap  // in-memory version of a map file on a server
-<span class="gd">-            f = opengzfile(filename, "rb");
-</span><span class="gi">+            f = openfile(filename, "rb");
-</span></code></pre></div></div>
+--- a/source/src/serverfiles.h
++++ b/source/src/serverfiles.h
+@@ -185 +185 @@ struct servermap  // in-memory version of a map file on a server
+-            f = opengzfile(filename, "rb");
++            f = openfile(filename, "rb");
+</code></pre></div></div>
 
 <p>For the second (thorough) approach I additionally added exiting after rendering a fixed number of frames.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="gh">diff --git a/source/src/main.cpp b/source/src/main.cpp
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>diff --git a/source/src/main.cpp b/source/src/main.cpp
 index 9d5c4d7ef..0a1350e5f 100644
-</span><span class="gd">--- a/source/src/main.cpp
-</span><span class="gi">+++ b/source/src/main.cpp
-</span><span class="p">@@ -1530,0 +1531,2 @@</span> int main(int argc, char **argv)
-<span class="gi">+        printf("FRAMES == %d\n", frames);
+--- a/source/src/main.cpp
++++ b/source/src/main.cpp
+@@ -1530,0 +1531,2 @@ int main(int argc, char **argv)
++        printf("FRAMES == %d\n", frames);
 +        if (frames == 10) exit(0);
-</span></code></pre></div></div>
+</code></pre></div></div>
 
 <h2 id="results">Results</h2>
 <p>The first approach didn’t result in any crashes. Fortunately, the second approach was more fruitful - a few crashes and hangs. After discarding repeated cases and those ones which I could not reproduce, I was left with two crashes:</p>
@@ -89,7 +89,7 @@ index 9d5c4d7ef..0a1350e5f 100644
 <p>They didn’t seem to be good candidates for further exploitation, but I encountered one interesting issue. The game implements displaying a stack track when an error occurs. Sometimes, the game did not exit well and was hanging on printing a stack. I decided to look deeper into it.</p>
 
 <p>This mechanism is implemented as a signal handler:</p>
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>struct signalbinder
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>struct signalbinder
 {
     static void stackdumper(int sig)
     {
@@ -128,9 +128,9 @@ index 9d5c4d7ef..0a1350e5f 100644
 };
 </code></pre></div></div>
 
-<p>After attaching a debugger, I noticed that the execution was stuck inside <code class="highlighter-rouge">backtrace_symbols</code>.</p>
+<p>After attaching a debugger, I noticed that the execution was stuck inside <code class="language-plaintext highlighter-rouge">backtrace_symbols</code>.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(gdb) bt
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>(gdb) bt
 #0  __lll_lock_wait_private (futex=0x7f5c91c98b80 &lt;main_arena&gt;) at ./lowlevellock.c:35
 #1  0x00007f5c91b4a4ab in __GI___libc_malloc (bytes=bytes@entry=2069) at malloc.c:3064
 #2  0x00007f5c91bdd3e6 in __backtrace_symbols (array=0x7fff239d6860, size=&lt;optimized out&gt;) at backtracesyms.c:69
@@ -160,7 +160,7 @@ index 9d5c4d7ef..0a1350e5f 100644
 #25 0x0000000000480c12 in main (argc=2, argv=0x7fff239d8488) at main.cpp:1537
 </code></pre></div></div>
 
-<p>Apparently, this function uses <code class="highlighter-rouge">malloc</code> internally which is not a safe function (<a href="https://man7.org/linux/man-pages/man7/signal-safety.7.html">signal-safety</a>) to use in a signal handler, and as a result it causes “undefined behavior”. As I googled this issue, it is not uncommon that in such situations calling <code class="highlighter-rouge">malloc</code> causes a deadlock.</p>
+<p>Apparently, this function uses <code class="language-plaintext highlighter-rouge">malloc</code> internally which is not a safe function (<a href="https://man7.org/linux/man-pages/man7/signal-safety.7.html">signal-safety</a>) to use in a signal handler, and as a result it causes “undefined behavior”. As I googled this issue, it is not uncommon that in such situations calling <code class="language-plaintext highlighter-rouge">malloc</code> causes a deadlock.</p>
 
 <p>I reported this problem as well:</p>
 

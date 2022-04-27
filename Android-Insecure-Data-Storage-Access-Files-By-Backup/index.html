@@ -12,13 +12,13 @@
   <body>
 	<div class="container">
         <header>
-		<div>mmmds's blog</div>	
-         	<nav>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
             	<a href="/">posts</a>
 				|
             	<a href="/projects/">projects</a>
 				|
-            	<a href="/about/">about</a>
+            	<a href="/about/">about</a> |
         	</nav>
         </header>
       </div>
@@ -30,7 +30,7 @@
  	<div class="entry">
    	<p>Continuing analysis of application from <a href="https://mmmds.github.io/Android-Insecure-Communication-Man-In-The-Middle-Example/">previous post</a> I found that sessionId is held in local file.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>private static class SessionWriterTask extends AsyncTask&lt;Context, Void, Void&gt;
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>private static class SessionWriterTask extends AsyncTask&lt;Context, Void, Void&gt;
   {
     private String sessionId;
 
@@ -58,19 +58,19 @@
 
 <p>File’s absolute path is /data/data/com.example.app/files/session.txt. Such file can be accessed without any problem on rooted device, but on unrooted one we don’t have permission to read it. I found a solution which involves making a backup and then unpacking it on a computer.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ adb backup -noapk com.example.app
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ adb backup -noapk com.example.app
 </code></pre></div></div>
 
 <p>Device prompted me for password for backup (on unencrypted devices it’s possible to skip it) and then backup.ab file appeared on my computer. 
 I used <a href="https://sourceforge.net/projects/adbextractor/">Android Backup Extractor</a> to decrypt and unpack backup.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ java -jar abe.jar unpack backup.ab backup.tar b4ckupp4ssw0rd
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ java -jar abe.jar unpack backup.ab backup.tar b4ckupp4ssw0rd
 $ tar -xf backup.tar
 </code></pre></div></div>
 
 <p>After this step I was able to read content of session.txt file and get sessionId.</p>
 
-<div class="highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ cat apps/com.example.app/f/session.txt
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ cat apps/com.example.app/f/session.txt
 A163B20D3696AF6185C07CD62EBA4B05
 </code></pre></div></div>
 
