@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Fuzzing ClamAV with real malware samples – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a> |
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Fuzzing ClamAV with real malware samples</h1>
+	<div><span class="post_list_date">2022-05-05</span></div>
+ 	<div class="entry">
+   	<p><strong>tl;dr</strong>: Fuzzing ClamAV using real malware samples results in 10 bugs discovered including one buffer overflow and three DoS vulnerabilities.</p>
+
+<h2 id="intro">Intro</h2>
+
+<p>ClamAV is an open-source antivirus engine that supports scanning a wide variety of file formats. That makes it an interesting target for fuzzing as finding test cases should be relatively easy.
+As the main purpose of this software is to detect malicious files, I decided to build the corpus from existing malware collections. This approach saved me a lot of time that I would have needed to spend looking for samples of supported file formats.
+ClamAV is also interesting because it is mostly used as a server-side scanner, especially on email gateways, so its instances should be easily reachable for bug triggering files. Additionally, the engine is used by Cisco products:</p>
+<ul>
+  <li>Cisco ASA Software</li>
+  <li>Cisco Firepower Threat Defense Software</li>
+  <li>Cisco Secure Endpoint (Amp for Endpoint) – Mac, Linux, and Windows</li>
+  <li>Cisco Web Security Appliance</li>
+  <li>Cisco Email Security Appliance</li>
+  <li>Cisco Secure Email and Web Manager</li>
+</ul>
+
+<h2 id="building-corpus">Building corpus</h2>
+
+<p>I wanted to build a corpus in a reasonable time so I wasn’t too picky about files. I decided to download as many samples as possible from the <a href="https://www.vx-underground.org/">vx-underground</a> malware database.</p>
+
+<p>The only requirement I had, was to exclude files too large files that could slow down the fuzzing too much. After minimizing the corpus with <code class="language-plaintext highlighter-rouge">afl-cmin</code> I had over 6000 files, to begin with.</p>
+
+<h2 id="harness">Harness</h2>
+
+<p>ClamAV can be used as a library, a daemon, or a standalone CLI application. The latter became very useful in preparing a harness. I stripped the client to leave only necessary operations, hardcoded desired settings, and adjusted to fuzzing input reading. It was enough to start the fuzzing process.</p>
+
+<p>I compiled the project (version 0.104.1) following the <a href="https://docs.clamav.net/manual/Installing/Installing-from-source-Unix.html">official instruction</a>, slightly modifying it to enable fuzzing.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>export CXX=`which afl-c++`
+export CC=`which afl-cc`
+export AFL_HARDEN=1
+cmake ..
+make
+~/AFLplusplus/afl-fuzz -t 500+ -i ~/input/ -o ~/sync/ -M fuzzer00 -- ~/clamav-0.104.1/build/clamscan/clamscan
+~/AFLplusplus/afl-fuzz -t 500+ -i ~/input/ -o ~/sync/ -S fuzzer01 -- ~/clamav-0.104.1/build/clamscan/clamscan
+[...]
+</code></pre></div></div>
+
+<p>I took an iterative approach because the whole endeavor was more of an experiment rather than a straightforward and planned process. With each step, I was slightly improving the harness, compilation settings and manually extending the corpus. Also at some point, I updated the version to 0.104.2 when Cisco released an update.</p>
+
+<p>While AFL++ was working, I was snooping through the project files to better understand the code. I noticed that there were already written libfuzzer tests. I took one of the tests and adapted it to AFL++. It turned out to be more efficient than my initial harness so finally, I ended up using this one.</p>
+
+<h2 id="crashes">Crashes</h2>
+<p>This process resulted in finding 3 unique bugs. One of them later appeared to be a duplicate. The other 2 bugs were crashing only under ASAN, so I’ll skip them.</p>
+
+<h2 id="crashes-are-not-everything">Crashes are not everything</h2>
+<p>Despite crashes, AFL++ reports hangs and stores all discovered test cases. They are also worth taking a look at.</p>
+
+<p>I passed all the hang-causing test cases through the target. I used the <code class="language-plaintext highlighter-rouge">timeout</code> command with a time limit set to 5 minutes to filter out false positives (files that are scanned long enough to make AFL++ think that the target hung).</p>
+
+<p>Almost all the test cases turned out to be just long executing scans. Almost, because in two cases ClamAV was falling into an infinite loop.</p>
+
+<h3 id="infinite-loop---chm">“Infinite” loop - CHM</h3>
+
+<p>The first real hang happened while scanning a CHM file. CHM (Microsoft Compiled HTML Help) is a binary file that internally consists of HTML documents.</p>
+
+<p>The function <code class="language-plaintext highlighter-rouge">chmd_read_headers</code> reads a length of entries from a CHM file and uses it without further validation. Later, this value is used to calculate a number of frames and the <code class="language-plaintext highlighter-rouge">lzxd_decompress</code> function iterates over that number. As the length can be set to any value, it can cause a very long (practically infinite) execution of the loop.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>File: libclammspack/mspack/chmd.c
+451:     while (num_entries--) {
+457:       READ_ENCINT(length);
+458: 
+[...]
+484:       fi-&gt;length   = length;
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>File: libclammspack/mspack/chmd.c
+0887: static int chmd_extract(struct mschm_decompressor *base,
+0888:                         struct mschmd_file *file, const char *filename)
+0889: {
+[...]
+0992:       self-&gt;error = lzxd_decompress(self-&gt;d-&gt;state, file-&gt;length);
+[...]
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>File: libclammspack/mspack/lzxd.c
+432:   end_frame = (unsigned int)((lzx-&gt;offset + out_bytes) / LZX_FRAME_SIZE) + 1;
+433: 
+434:   while (lzx-&gt;frame &lt; end_frame) {
+[...]
+874:     lzx-&gt;frame++;
+[...]
+880:   } /* while (lzx-&gt;frame &lt; end_frame) */
+881: 
+</code></pre></div></div>
+
+<p>Below I present an example execution with the length set to <code class="language-plaintext highlighter-rouge">8279247340166989053</code>. Calculated <code class="language-plaintext highlighter-rouge">end_frame</code> is <code class="language-plaintext highlighter-rouge">2536397953</code>. In that case, after 20 minutes of execution, the <code class="language-plaintext highlighter-rouge">lzx-&gt;frame</code> counter reaches barely <code class="language-plaintext highlighter-rouge">456706</code>. By extrapolating this value, I assume that the total execution time would be around 1851 hours (77 days).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gdb --args /home/osboxes/clamav-0.104.1-ASAN/build/clamscan/clamscan -d /home/osboxes/clam/test/database-small/ id:000001,sync:fuzzer03,src:015830
+
+Breakpoint 1, chmd_read_headers (sys=0x7fffffffd1c0, fh=0x555555720fd0, chm=0x5555555e1400, entire=1)
+    at /home/osboxes/clamav-0.104.1-debug/libclammspack/mspack/chmd.c:457
+457       READ_ENCINT(length);
+(gdb) n
+460       if (name_len &lt; 2 || !name[0] || !name[1]) continue;
+(gdb) print length
+$3 = 8279247340166989053
+(gdb) c
+Continuing.
+
+Breakpoint 2, chmd_extract (base=0x555555748c70, file=0x555555746220, 
+    filename=0x5555555e9cb0 "/tmp/20211212_033146-scantem.9d1d613cac/clamav-e72f35466aabe6df59851d14be93e030.tmp")
+    at /home/osboxes/clamav-0.104.1-debug/libclammspack/mspack/chmd.c:992
+992       self-&gt;error = lzxd_decompress(self-&gt;d-&gt;state, file-&gt;length);
+(gdb) print file-&gt;length
+$4 = 8279247340166989053
+(gdb) c
+Continuing.
+
+Breakpoint 3, lzxd_decompress (lzx=0x55555559d3e0, out_bytes=8279247340166969796) at /home/osboxes/clamav-0.104.1-debug/libclammspack/mspack/lzxd.c:434
+434   while (lzx-&gt;frame &lt; end_frame) {
+(gdb) print end_frame
+$5 = 2536397953
+(gdb) print lzx-&gt;frame
+$6 = 1
+
+# 20 minutes later...
+
+#6  0x00007ffff78c667f in lzxd_decompress (lzx=0x55555559d3e0, out_bytes=8279247325201660356)
+    at /home/osboxes/clamav-0.104.1-debug/libclammspack/mspack/lzxd.c:783
+783             READ_IF_NEEDED;
+(gdb) print lzx-&gt;frame
+$8303 = 456706
+(gdb) print end_frame
+$8304 = 2536397953
+</code></pre></div></div>
+
+<h3 id="infinite-loop---tiff">Infinite loop - TIFF</h3>
+
+<p>The second hang happened while scanning a TIFF (Tag Image File Format) file. This time it was really infinite execution of a loop.</p>
+
+<p>The loop in the <code class="language-plaintext highlighter-rouge">cli_parsetiff</code> function iterates over the <code class="language-plaintext highlighter-rouge">map</code> buffer using the <code class="language-plaintext highlighter-rouge">offset</code> value which is read directly from the buffer (representing a file). The <code class="language-plaintext highlighter-rouge">offset</code> value is also used to control the loop, expecting a specific value (zero) to end it. If the <code class="language-plaintext highlighter-rouge">offset</code> value is never set to zero (line 191) and never grows to reach outside the buffer (a condition in line 185), it leads to iterating over the same part of the <code class="language-plaintext highlighter-rouge">map</code> buffer over and over.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>File: `libclamav/tiff.c`
+095:     /* each IFD represents a subfile, though only the first one normally matters */
+096:     do {
+097:         /* acquire number of directory entries in current IFD */
+098:         if (fmap_readn(map, &amp;num_entries, offset, 2) != 2) {
+099:             cli_dbgmsg("cli_parsetiff: Failed to acquire number of directory entries in current IFD, file appears to be truncated.\n");
+100:             cli_append_possibly_unwanted(ctx, "Heuristics.Broken.Media.TIFF.EOFReadingNumIFDDirectoryEntries");
+101:             status = CL_EPARSE;
+102:             goto done;
+103:         }
+104:         offset += 2;
+105:         num_entries = tiff16_to_host(big_endian, num_entries);
+106: 
+[...]
+184:         /* acquire next IFD location, gets 0 if last IFD */
+185:         if (fmap_readn(map, &amp;offset, offset, sizeof(offset)) != sizeof(offset)) {
+186:             cli_dbgmsg("cli_parsetiff: Failed to aquire next IFD location, file appears to be truncated.\n");
+187:             cli_append_possibly_unwanted(ctx, "Heuristics.Broken.Media.TIFF.EOFReadingChunkCRC");
+188:             status = CL_EPARSE;
+189:             goto done;
+190:         }
+191:         offset = tiff32_to_host(big_endian, offset);
+192:     } while (offset);
+193: 
+</code></pre></div></div>
+
+<p>Below I present how each iteration of the loop uses the same <code class="language-plaintext highlighter-rouge">offset</code> value and never progresses.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gdb --args ./clamscan --alert-broken-media=yes --database ~/test/database issue8
+
+Breakpoint 1, cli_parsetiff (ctx=0x7fffffffd3a0) at /home/osboxes/Downloads/clamav-0.104.2/libclamav/tiff.c:185
+185         if (fmap_readn(map, &amp;offset, offset, sizeof(offset)) != sizeof(offset)) {
+(gdb) print offset
+$1 = 37
+(gdb) n
+191         offset = tiff32_to_host(big_endian, offset);
+(gdb) n
+192     } while (offset);
+(gdb) print offset
+$2 = 11
+(gdb) c
+Continuing.
+
+Breakpoint 1, cli_parsetiff (ctx=0x7fffffffd3a0) at /home/osboxes/Downloads/clamav-0.104.2/libclamav/tiff.c:185
+185         if (fmap_readn(map, &amp;offset, offset, sizeof(offset)) != sizeof(offset)) {
+(gdb) print offset
+$3 = 37
+(gdb) n
+191         offset = tiff32_to_host(big_endian, offset);
+(gdb) n
+192     } while (offset);
+(gdb) print offset
+$4 = 11
+
+[...]
+
+Breakpoint 1, cli_parsetiff (ctx=0x7fffffffd3a0) at /home/osboxes/Downloads/clamav-0.104.2/libclamav/tiff.c:185
+185         if (fmap_readn(map, &amp;offset, offset, sizeof(offset)) != sizeof(offset)) {
+(gdb) print offset
+$110 = 37
+(gdb) n
+191         offset = tiff32_to_host(big_endian, offset);
+(gdb) n
+192     } while (offset);
+(gdb) print offset
+$111 = 11
+</code></pre></div></div>
+
+<h2 id="making-use-of-test-cases">Making use of test cases</h2>
+<p>During the fuzzing, I didn’t care about memory leaks. After the whole process, I decided to make use of all generated test cases and pass them again through ClamAV but this time with LeakSanitizer enabled. This quick check resulted in discovering two memory leaks.</p>
+
+<h3 id="memory-leak---html">Memory leak - HTML</h3>
+
+<p>While scanning an HTML file, LeakSanitizer printed an error about memory allocations from <code class="language-plaintext highlighter-rouge">others_common.c:235</code> not being freed.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ./clamscan --database ~/test/database ~/Documents/leak/out/1
+Loading:     0s, ETA:   0s [========================&gt;]       92/92 sigs       
+Compiling:   0s, ETA:   0s [========================&gt;]       40/40 tasks 
+
+/home/osboxes/Documents/leak/out/1: OK
+
+----------- SCAN SUMMARY -----------
+Known viruses: 92
+Engine version: 0.104.2
+Scanned directories: 0
+Scanned files: 1
+Infected files: 0
+Data scanned: 0.01 MB
+Data read: 0.00 MB (ratio 3.00:1)
+Time: 0.079 sec (0 m 0 s)
+Start Date: 2022:01:17 18:24:41
+End Date:   2022:01:17 18:24:41
+
+=================================================================
+==1567==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 65536 byte(s) in 16 object(s) allocated from:
+    #0 0x7ff9b25daffe in __interceptor_realloc (/lib/x86_64-linux-gnu/libasan.so.5+0x10dffe)
+    #1 0x7ff9b1fa4cce in cli_realloc /home/osboxes/Downloads/clean/clamav-0.104.2/libclamav/others_common.c:235
+
+SUMMARY: AddressSanitizer: 65536 byte(s) leaked in 16 allocation(s).
+</code></pre></div></div>
+
+<p>For a single execution of ClamAV, it wouldn’t be a big deal but things could get worse if ClamAV was used as a daemon or as a library in more complex software. In those cases, a file could be delivered over and over to continuously cause leaks until all available memory is exhausted. As the consequence, the process would be killed by OOM Killer (if enabled) or the whole host would hang.</p>
+
+<p>The file generated during the fuzzing process had 5162 bytes and was causing a 65536 bytes leak per scan. With a manual trial and error method, I managed to create a bigger file (3551743 bytes) that was leaking 65110016 bytes (65MB).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>osboxes@osboxes:~/Downloads/clean/clamav-0.104.2/build-asan/clamscan$ ./clamscan --database ~/test/database ~/Documents/leak/test/2
+[...]
+=================================================================
+==1537==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 65110016 byte(s) in 15896 object(s) allocated from:
+    #0 0x7f5ba6694ffe in __interceptor_realloc (/lib/x86_64-linux-gnu/libasan.so.5+0x10dffe)
+    #1 0x7f5ba605ecce in cli_realloc /home/osboxes/Downloads/clean/clamav-0.104.2/libclamav/others_common.c:235
+
+SUMMARY: AddressSanitizer: 65110016 byte(s) leaked in 15896 allocation(s).
+</code></pre></div></div>
+
+<p>I wanted to be sure that consecutive scans will cause additional leaks. I started the daemon and ran a few scans of the same file. To my surprise, no additional memory was leaked. It turned out that ClamAV implements a cache for scan results, so in fact only one scan was executed. This small obstacle was easy to bypass by changing a single byte in the file. It didn’t mess with the part responsible for leaks but changed the file’s hash value which was enough to fool the cache mechanism. Finally, it led to the process being killed by OOM Killer.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo ./clamd -F
+[...]
+Killed
+</code></pre></div></div>
+
+<p>I used a virtual machine with 3GB of RAM and after about 50 scans the memory was exhausted. Below I present output from the <code class="language-plaintext highlighter-rouge">top</code> command after starting the daemon and right before the kill.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                                                                                             
+   1578 root      20   0  141828  17608   8260 S   0.0   0.6   0:00.04 clamd                                       
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>    PID USER      PR  NI    VIRT    RES    SHR S  %CPU  %MEM     TIME+ COMMAND                                                                                                                             
+   1578 root      20   0 6769160   2.5g   4156 S   0.0  86.7   1:02.13 clamd                                        
+</code></pre></div></div>
+
+<p>(I decided to skip describing the second memory leak because the amount of leaked memory was minimal and the finding was not classified as a vulnerability)</p>
+
+<h2 id="different-input-approach">Different input approach</h2>
+<p>AV scanning is not the only entry point for external files. ClamAV also supports loading external signature databases. This path is not that attractive because it would require convincing an administrator to load a specific file. Anyway, I wanted to give it a try. To do it, I slightly modified the harness and for a corpus, I chose the original signature databases that are downloaded during setup.</p>
+
+<p>This resulted in finding 3 additional crashes. 2 of them were detected only under AddressSanitizer and didn’t affect the application in a way to treat it as a vulnerability.</p>
+
+<h3 id="write-heap-buffer-overflow---pdb-and-wdb-databases">Write heap buffer overflow - pdb and wdb databases</h3>
+
+<p>PDB and WDB databases contain rules with regex patterns. Characters from the <code class="language-plaintext highlighter-rouge">pat</code> buffer that stores a loaded regex pattern are used as indexes for accessing the <code class="language-plaintext highlighter-rouge">bitmap</code> buffer. When the pattern contains a character equal or above <code class="language-plaintext highlighter-rouge">0x80</code>, then the value interpreted as char becomes a negative value and leads to accessing and overwriting data before the <code class="language-plaintext highlighter-rouge">bitmap</code> buffer. In the result, the heap memory structure breaks and leads to a crash (I didn’t find a way to exploit it further).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>File: libclamav/regex_suffix.c
+231:         } else {
+232:             bitmap[pat[*pos] &gt;&gt; 3] ^= 1 &lt;&lt; (pat[*pos] &amp; 0x7);
+233:             range_start = pat[*pos];
+234:             ++*pos;
+235:             hasprev = 1;
+236:         }
+</code></pre></div></div>
+
+<p>Below I present executions showing that a character <code class="language-plaintext highlighter-rouge">0x80</code> results in accessing index <code class="language-plaintext highlighter-rouge">-16</code>, and how the daemon crashes because of it.</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gdb /home/osboxes/clamav-0.104.1-ASAN/build/clamscan/clamscan -d 3.wdb .
+[...]
+
+Breakpoint 1, parse_char_class (pat=0x7fffffff9122 ".+\\.ebaymotors\\.com([/?].*)?:.+\\.ebay\\.com([\200?].*)?/", pos=0x7fffffff8e80) at /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_suffix.c:232
+232             bitmap[pat[*pos] &gt;&gt; 3] ^= 1 &lt;&lt; (pat[*pos] &amp; 0x7);
+(gdb) print pat[*pos] &gt;&gt; 3
+$53 = -16
+(gdb) print pat[*pos]
+$54 = -128 '\200'
+(gdb) n
+=================================================================
+==394350==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x60300000d560 at pc 0x7ffff70d21dd bp 0x7fffffff8d50 sp 0x7fffffff8d40
+READ of size 1 at 0x60300000d560 thread T0
+    #0 0x7ffff70d21dc in parse_char_class /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_suffix.c:232
+    #1 0x7ffff70d2787 in parse_regex /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_suffix.c:301
+    #2 0x7ffff70d264f in parse_regex /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_suffix.c:282
+    #3 0x7ffff70d3644 in cli_regex2suffix /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_suffix.c:455
+    #4 0x7ffff70d0e19 in regex_list_add_pattern /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_list.c:772
+    #5 0x7ffff70cec50 in load_regex_matcher /home/osboxes/clamav-0.104.1-ASAN/libclamav/regex_list.c:510
+    #6 0x7ffff6e5f1d1 in cli_loadwdb /home/osboxes/clamav-0.104.1-ASAN/libclamav/readdb.c:1217
+    #7 0x7ffff6e7996a in cli_load /home/osboxes/clamav-0.104.1-ASAN/libclamav/readdb.c:4456
+    #8 0x7ffff6e7c1b7 in cl_load /home/osboxes/clamav-0.104.1-ASAN/libclamav/readdb.c:4945
+    #9 0x5555555812ce in scanmanager /home/osboxes/clamav-0.104.1-ASAN/clamscan/manager.c:1146
+    #10 0x555555579de9 in main /home/osboxes/clamav-0.104.1-ASAN/clamscan/clamscan.c:171
+    #11 0x7ffff6a7d0b2 in __libc_start_main (/lib/x86_64-linux-gnu/libc.so.6+0x270b2)
+    #12 0x5555555793ad in _start (/home/osboxes/clamav-0.104.1-ASAN/build/clamscan/clamscan+0x253ad)
+
+[...]
+==394350==ABORTING
+</code></pre></div></div>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ /home/osboxes/clamav-0.104.1/build/clamscan/clamscan -d 3.wdb .
+Segmentation fault
+</code></pre></div></div>
+
+<h2 id="coverage">Coverage</h2>
+<p>Measuring coverage became useful for two reasons. The first one was to monitor how effective the fuzzing is. The second reason was to find new ways to expand the corpus. After the first phase of fuzzing, I noticed that certain functions were not triggered at all. By investigating it, I came up with new manually prepared test cases for formats that were not present in the malware samples:</p>
+<ul>
+  <li>ESTsoft EGG</li>
+  <li>A3X</li>
+  <li>ISO 9660</li>
+  <li>MBR</li>
+  <li>APM</li>
+  <li>HFS+</li>
+  <li>msexpand</li>
+  <li>PE packed with PESpin and WinUpack</li>
+</ul>
+
+<p>The table below presents coverage of the initial corpus, test cases generated during the first phase of fuzzing (before extending the corpus), and test cases generated during the second phase of fuzzing (after extending the corpus).</p>
+
+<table>
+  <tbody>
+    <tr>
+      <td>phase</td>
+      <td>lines</td>
+      <td>functions</td>
+    </tr>
+    <tr>
+      <td>Initial</td>
+      <td>26.4% (14835/56132)</td>
+      <td>32% (520/1579)</td>
+    </tr>
+    <tr>
+      <td>First</td>
+      <td>47.8% (26824/56132)</td>
+      <td>54% (853/1579)</td>
+    </tr>
+    <tr>
+      <td>Second</td>
+      <td>51.3% (28803/563132)</td>
+      <td>56.4% (890/1579)</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 id="reporting">Reporting</h2>
+<p>All the findings I responsibly disclosed to Cisco PSIRT accordingly to their <a href="https://github.com/Cisco-Talos/clamav/security/policy">security policy</a>. For part of them, I also submitted fix propositions.</p>
+
+<p>Four of the findings were classified as vulnerabilities and fixed. They could be exploited to cause a denial of service. They were announced <a href="https://blog.clamav.net/2022/05/clamav-01050-01043-01036-released.html">here</a> and assigned the following CVE IDs and advisories:</p>
+<ul>
+  <li>Infinite loop CHM - <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-20770">CVE-2022-20770</a>, <a href="https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-clamav-dos-prVGcHLd">Cisco Security Advisory</a></li>
+  <li>Infinite loop TIFF - <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-20771">CVE-2022-20771</a>, <a href="https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-clamav-dos-ZAZBwRVG">Cisco Security Advisory</a></li>
+  <li>Memory leak HTML - <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-20785">CVE-2022-20785</a>, <a href="https://tools.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-clamav-html-XAuOK8mR">Cisco Security Advisory</a></li>
+  <li>Buffer overflow (pdb, wdb) - <a href="https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-20792">CVE-2022-20792</a></li>
+</ul>
+
+<p>There was also a fifth vulnerability, however, that one appeared to be a <a href="https://blog.clamav.net/2022/01/clamav-01035-and-01042-security-patch.html">duplicate</a> which at the time of reporting was awaiting a fix release. The other six were classified as non-security-related. At the time of writing, most of them are already fixed:</p>
+
+<ul>
+  <li><a href="https://github.com/Cisco-Talos/clamav/commit/2c91aa741e67a5714d3eeb38820724efcd4436d4">https://github.com/Cisco-Talos/clamav/commit/2c91aa741e67a5714d3eeb38820724efcd4436d4</a></li>
+  <li><a href="https://github.com/Cisco-Talos/clamav/pull/469">https://github.com/Cisco-Talos/clamav/pull/469</a></li>
+  <li><a href="https://github.com/Cisco-Talos/clamav/pull/470">https://github.com/Cisco-Talos/clamav/pull/470</a></li>
+  <li><a href="https://github.com/Cisco-Talos/clamav/pull/530">https://github.com/Cisco-Talos/clamav/pull/530</a></li>
+  <li><a href="https://github.com/Cisco-Talos/clamav/pull/548">https://github.com/Cisco-Talos/clamav/pull/548</a></li>
+</ul>
+
+<h2 id="bonus---who-tests-the-tests">Bonus - Who tests the tests?</h2>
+<p>As a bonus, I include the outcome of playing with existing libfuzzer tests.</p>
+
+<p>I compiled the tests and started them with the same corpus to compare the results with AFL++. However, the more I looked into the code the more I was convinced that something is not right.</p>
+
+<p>It appeared that the tests had two bugs that were making them less effective.</p>
+
+<p><a href="https://github.com/Cisco-Talos/clamav/blob/7b464ab882fc024e4dbdf29fc912852a7ae8337f/fuzz/clamav_scanfile_fuzzer.cpp#L60">Libfuzzer tests</a> are written in a way that it is possible to choose a specific file format to fuzz and it affects ClamAV’s parser configuration (unnecessary file formats are disabled). Unfortunately, <a href="https://github.com/Cisco-Talos/clamav/blob/main/fuzz/CMakeLists.txt">CMakeLists.txt</a> file that implements this distinction contained a typo making all scans behave in the same way (all file formats enabled in the parser). It didn’t seem like a big deal for my fuzzing because I wasn’t relying on that feature and wanted to fuzz all possible files anyway.</p>
+
+<p>The second problem was more serious and could hinder concurrent fuzzing and even lead to false negatives (missed crashes). During execution, the tests save a current test case to a file whose name is passed to the scanning engine. The file name was generated once (at the startup) and shared between all fuzzing processes leading to a race condition - all processes were saving test cases to the same file and thus overwriting it.</p>
+
+<p>As soon as I noticed it I decided to report it (this time directly on GitHub). The first problem was already known and a pull request was awaiting merging:</p>
+<ul>
+  <li><a href="https://github.com/Cisco-Talos/clamav/pull/401">https://github.com/Cisco-Talos/clamav/pull/401</a></li>
+</ul>
+
+<p>For the second problem I created an issue:</p>
+<ul>
+  <li><a href="https://github.com/Cisco-Talos/clamav/issues/432">https://github.com/Cisco-Talos/clamav/issues/432</a></li>
+</ul>
+
+<h2 id="summary">Summary</h2>
+<p>Fuzzing ClamAV was a really valuable experience for me. It was my first deeper contact with this software, so I benefited by learning how it works. Analysing coverage and extending the corpus was an opportunity to learn more about less popular file formats. Also, the lazy idea of utilizing a malware database as a corpus turned out to offer decent coverage. Finally, the outcome was satisfying as 10 bugs were discovered (not including bugs in tests) and four CVEs were assigned.</p>
+
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/clamav/',
+		  'title': 'Fuzzing ClamAV with real malware samples'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

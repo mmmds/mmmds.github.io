@@ -89,6 +89,10 @@ pre.highlight {
 	overflow: auto;
 }
 
+table, th, td {
+	border: solid 1px #cccccc;
+}
+
 div > ul > li {
 	margin-top: 0.5em;
 }
