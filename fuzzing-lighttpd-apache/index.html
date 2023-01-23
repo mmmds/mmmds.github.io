@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Taking a different approach to fuzzing HTTP servers – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a> |
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Taking a different approach to fuzzing HTTP servers</h1>
+	<div><span class="post_list_date">2023-01-23</span></div>
+ 	<div class="entry">
+   	<p><strong>tl;dr</strong>: Took a non-standard approach to fuzz HTTP servers. Fuzzing from the perspective of a backend server (target HTTP behaving like a proxy) and web-socket client. In total, revealed 3 bugs in Apache HTTP and lighttpd.</p>
+
+<h2 id="intro">Intro</h2>
+
+<p>I decided to again take a look at HTTP servers but this time taking a different, not typical approach. Instead of fuzzing a server from the perspective of an HTTP client, I wanted to play a bit and consider different potential scenarios.</p>
+
+<h2 id="approach-1---malicious-backend">Approach 1 - malicious backend</h2>
+
+<p>Fuzzing from the perspective of a backend. In that case, the target HTTP server was configured to become a reverse proxy, receive a fixed HTTP request, pass it to a backend, and then receive and process an HTTP response that was subject to manipulation by the fuzzer.</p>
+
+<h3 id="lighttpd">lighttpd</h3>
+
+<p>Except for typical reverse proxy configuration (<code class="language-plaintext highlighter-rouge">mod_proxy</code>), lighttpd supports also forwarding to AJP/1.3 backends (<code class="language-plaintext highlighter-rouge">mod_ajp13</code>). Both configurations were worth checking but AJP was more interesting because it’s less common than HTTP, thus could be less polished and contain more bugs.</p>
+
+<p>Building a corpus of HTTP responses was pretty straightforward and is covered in many different places, so I’ll skip it. Preparing a corpus for AJP/1.3 part required more effort. This protocol is used mostly for forwarding traffic between a reverse proxy and an application backend so it’s not so often exposed publicly. It’s supported for example by Tomcat, WildFly, and Glassfish. To build the corpus I set up Tomcat and configured lighttpd to forward traffic to it. I used tcpdump to record all the network traffic issued various requests (authorized, not authorized, accessing existing and non-existing resources) through lighttpd but also directly interacting with Tomcat using nmap’s AJP-related scripts (<code class="language-plaintext highlighter-rouge">ajp-auth</code>,<code class="language-plaintext highlighter-rouge">ajp-headers</code>,<code class="language-plaintext highlighter-rouge">ajp-methods</code>,<code class="language-plaintext highlighter-rouge">ajp-request</code>). AJP responses extracted from the dump created the final corpus.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>server.document-root = "/home/mmm/lighttpd/webroot"
+server.port = 8001
+server.modules += ("mod_ajp13")
+    ajp13.server = ( "" =&gt;
+                     ( ( 
+                       "host" =&gt; "127.0.0.1",
+                       "port" =&gt; 5577
+                     ) )
+                   )
+</code></pre></div></div>
+
+<p>Writing a harness was more tricky as I had to implement a socket-based server and client directly in the lighttpd code. Full code is available <a href="/assets/lighttpd-reverse-proxy-harness.c.txt">here</a> and is quite long, so I’ll give a high-level overview of it:</p>
+<ol>
+  <li>Create a listening socket on port 5577 (this one simulates the AJP backend)</li>
+  <li>Create a socket, connect to lighttpd (port 8001), and send a fixed HTTP request (this one simulates HTTP client)</li>
+  <li>Receive an AJP request and respond with a mutated AJP response.</li>
+</ol>
+
+<p>Finally, I was ready to build and start fuzzing.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>sudo scons -j 4 build_static=1 build_dynamic=0 install
+export FUZZINPUTFILE=/home/mmm/lighttpd/input
+afl-fuzz -G 10240 -i ~/lighttpd/corpus/ -o ~/lighttpd/fuzz/output -f /home/mmm/lighttpd/input  -- /usr/local/sbin/lighttpd -D -f /home/mmm/lighttpd/my.conf
+</code></pre></div></div>
+
+<p>The fuzzing revealed one case where a malformed AJP response (<code class="language-plaintext highlighter-rouge">QUIAAASA/wAA</code> in base64) was triggering read heap buffer overflow and as a result, was crashing the server.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>==1859941==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x625000004901 at pc 0x000000434647 bp 0x7fffffffda60 sp 0x7fffffffd220
+READ of size 16706 at 0x625000004901 thread T0
+</code></pre></div></div>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Program received signal SIGSEGV, Segmentation fault.
+ajp13_expand_headers (hctx=0x5555555f14e0, plen=4294869346, b=0x5555555e66d0) at src/mod_ajp13.c:740
+740                len = ajp13_dec_uint16(ptr);
+(gdb) print ptr
+$1 = (uint8_t *) 0x555555607000 &lt;error: Cannot access memory at address 0x555555607000&gt;
+</code></pre></div></div>
+
+<p>I reported the issue and it was fixed in lighttpd 1.4.67:</p>
+<ul>
+  <li><a href="https://redmine.lighttpd.net/issues/3170">https://redmine.lighttpd.net/issues/3170</a></li>
+  <li><a href="https://git.lighttpd.net/lighttpd/lighttpd1.4/commit/0b49e767b906d6861f63d3764001bd73a65265dc">https://git.lighttpd.net/lighttpd/lighttpd1.4/commit/0b49e767b906d6861f63d3764001bd73a65265dc</a></li>
+</ul>
+
+<h3 id="apache-http">Apache HTTP</h3>
+<p>I took the same approach for Apache. The general idea and corpus remained the same, only the configuration file and the harness <a href="/assets/apache-reverse-proxy-harness.c.txt">here</a> required adaptation.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;VirtualHost *:80&gt;
+    ProxyRequests Off
+    ProxyPass / ajp://localhost:8012/
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/html
+    ErrorLog ${APACHE_LOG_DIR}/error.log
+    CustomLog ${APACHE_LOG_DIR}/access.log combined
+&lt;/VirtualHost&gt;
+</code></pre></div></div>
+
+<p>This time also one crash was found. A null pointer dereference condition was happening when the server received a malformed AJP response (<code class="language-plaintext highlighter-rouge">QUIAEAQAEABlZS1wYzktMQAgCgBBQgACBQFR</code> in base64). The <code class="language-plaintext highlighter-rouge">r-&gt;headers_out</code> pointer in the <code class="language-plaintext highlighter-rouge">ap_content_length_filter</code> function (protocol.c) was null while being passed to the <code class="language-plaintext highlighter-rouge">apr_table_setn</code> function. As the result, a process or a thread was crashing (depending on the configuration).</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>Thread 3 "httpd" received signal SIGSEGV, Segmentation fault.
+[Switching to Thread 0x7ffff728a700 (LWP 289134)]
+0x00007ffff7ecfe2b in apr_table_setn () from /lib/x86_64-linux-gnu/libapr-1.so.0
+(gdb) up
+#1  0x00005555555a0758 in ap_set_content_length (r=0x7ffff424d0a0, clength=0) at protocol.c:163
+163     apr_table_setn(r-&gt;headers_out, "Content-Length",
+(gdb) print r-&gt;headers_out
+$1 = (apr_table_t *) 0x0
+</code></pre></div></div>
+
+<p>I reported it to the Apache Security Team. It wasn’t qualified as a security vulnerability but as a hardening issue and was eventually fixed.</p>
+<ul>
+  <li><a href="https://svn.apache.org/viewvc?view=revision&amp;revision=1906940">https://svn.apache.org/viewvc?view=revision&amp;revision=1906940</a></li>
+  <li><a href="https://svn.apache.org/viewvc/httpd/httpd/trunk/modules/proxy/ajp_header.c?r1=1842881&amp;r2=1906940&amp;pathrev=1906940&amp;diff_format=h">https://svn.apache.org/viewvc/httpd/httpd/trunk/modules/proxy/ajp_header.c?r1=1842881&amp;r2=1906940&amp;pathrev=1906940&amp;diff_format=h</a></li>
+</ul>
+
+<h2 id="approach-2---malicious-web-socket">Approach 2 - malicious web socket</h2>
+
+<p>Fuzzing from the perspective of a web socket client. The target HTTP server was configured to receive and pass web socket data.</p>
+
+<p>This approach was easier to implement because the harness just needed to send a packet over a socket (available <a href="/assets/lighttpd-websocket-harness.c.txt">here</a>). Also, I decided to skip Apache and focus only on lighttpd and its <code class="language-plaintext highlighter-rouge">mod_wstunnel</code>.</p>
+
+<p>Configuration was based on an example backend script from the <a href="https://redmine.lighttpd.net/projects/lighttpd/wiki/Mod_wstunnel">documentation</a>.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>server.document-root = "/home/m/webroot"
+server.port = 3000
+mimetype.assign = (
+  ".html" =&gt; "text/html",
+)
+
+server.modules += ("mod_wstunnel")
+wstunnel.server = (
+  "/ws/" =&gt; (
+    (
+      "socket" =&gt; "/dev/shm/psock",
+      "bin-path" =&gt; "/home/m/echo.pl",
+      "max-procs" =&gt; 1
+    )
+  )
+)
+</code></pre></div></div>
+
+<p>A corpus consisted mostly of HTTP requests responsible for a web socket handshake.</p>
+
+<p>Even such a limited corpus and coverage led to the discovery of one more bug. When the server received a handshake with an invalid value in the <code class="language-plaintext highlighter-rouge">Sec-WebSocket-Version</code> header (for example <code class="language-plaintext highlighter-rouge">Sec-WebSocket-Version: x</code>), it was triggering a null pointer dereference resulting in a crash.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ gdb --args lighttpd -D -f server.conf 
+(gdb) r
+Starting program: /usr/local/sbin/lighttpd -D -f server.conf
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+2022-08-02 16:41:47: (/home/osboxes/lighttpd-1.4.65/src/server.c.1588) server started (lighttpd/1.4.65)
+
+Program received signal SIGSEGV, Segmentation fault.
+0x0000000000000000 in ?? ()
+(gdb) up
+#1  0x000055555559d75e in gw_write_request (hctx=0x5555555e3fd0, r=0x5555555e1230) at /home/osboxes/lighttpd-1.4.65/src/gw_backend.c:1993
+1993                handler_t rc = hctx-&gt;create_env(hctx);
+(gdb) print hctx-&gt;create_env
+$1 = (handler_t (*)(struct gw_handler_ctx *)) 0x0
+</code></pre></div></div>
+
+<p>This crash was also reported and fixed:</p>
+<ul>
+  <li><a href="https://redmine.lighttpd.net/issues/3165">https://redmine.lighttpd.net/issues/3165</a></li>
+  <li><a href="https://git.lighttpd.net/lighttpd/lighttpd1.4/commit/971773f1fae600074b46ef64f3ca1f76c227985f">https://git.lighttpd.net/lighttpd/lighttpd1.4/commit/971773f1fae600074b46ef64f3ca1f76c227985f</a></li>
+</ul>
+
+<h2 id="conclusion">Conclusion</h2>
+<p>Changing the approach to fuzzing and exploring different scenarios proved to be a successful way to uncover more trivial bugs in popular software. Even if the findings were not critical, they still could disrupt the work of servers running it.</p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/fuzzing-lighttpd-apache/',
+		  'title': 'Taking a different approach to fuzzing HTTP servers'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>

@@ -1,0 +1,104 @@
++#include <netdb.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/socket.h>
++
++
+ static int oneshot_fd = 0;
+ static int oneshot_fdout = -1;
+ static fdnode *oneshot_fdn = NULL;
+@@ -1965,8 +1973,97 @@ static void server_main_loop (server * const srv) {
+        unix_time64_t last_active_ts = server_monotonic_secs();
+        log_epoch_secs = server_epoch_secs(srv, 0);
+ 
++       // INIT HTTP SERVER
++       pid_t fuzz_server = fork();
++       if (fuzz_server == 0) {
++               //receive request
++               struct timeval tv;
++               tv.tv_sec = 0;
++               tv.tv_usec = 1000000;
++               int serv_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
++               setsockopt(serv_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval));
++               setsockopt(serv_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(struct timeval));
++               struct sockaddr_in serv_addr;
++               memset(&serv_addr, 0, sizeof(serv_addr));
++               serv_addr.sin_family = AF_INET;  
++               serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");  
++               serv_addr.sin_port = htons(atoi(getenv("FUZZ_PROXY_PORT")));
++               int reuse = 1;
++               setsockopt(serv_sock, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuse, sizeof(reuse));
++               bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
++               listen(serv_sock, 20);
++               struct sockaddr_in client_addr;
++               socklen_t client_addr_size = sizeof(client_addr);
++               // INIT HTTP CLIENT
++               pid_t fuzz_client = fork();
++               if (fuzz_client == 0) {
++                       fprintf(stderr, "%s", "start client\n");
++                       //send request
++                       int sockfd;             
++                       struct sockaddr_in servaddr;
++                       struct timeval tv;
++                       tv.tv_sec = 0;
++                       tv.tv_usec = 200000;
++                       sockfd = socket(AF_INET, SOCK_STREAM, 0);
++                       setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(struct timeval));
++                       setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(struct timeval));
++                       bzero(&servaddr, sizeof(servaddr));
++                       servaddr.sin_family = AF_INET;
++                       servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
++                       servaddr.sin_port = htons(atoi(getenv("FUZZ_SERVER_PORT")));
++                       connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
++
++                       {
++                               char* buf = "GET / HTTP/1.1\r\nHost: localhost\r\nUser-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:103.0) Gecko/20100101 Firefox/103.0\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\nAccept-Language: en-US,en;q=0.5\r\nAccept-Encoding: gzip, deflate, br\r\n\r\n";
++                               write(sockfd, buf, strlen(buf));
++                       }
++                       //receive response
++                       {
++                               char buf[80] = {0};
++                               int n = read(sockfd, buf, sizeof(buf));
++                               if (n < 1) { fprintf(stderr, "%s", "**Client timeout**\n"); }
++                       }
++                       close(sockfd);
++                       fprintf(stderr, "%s", "finish client\n");
++                       exit(0);
++               } else {
++                       fprintf(stderr, "%s", "start server\n");
++                       int client_sock = accept(serv_sock, (struct sockaddr*)&client_addr, &client_addr_size);
++                       {
++                               char buf[1024] = {0};
++                               read(client_sock, buf, sizeof(buf));
++                       }
++                       {
++                               char buf[102400] = {0};
++                               FILE *f = fopen(getenv("FUZZ_INPUT_FILE"), "rb");
++                               int n = fread(buf, 1, 102400, f);
++                               fclose(f);
++                               write(client_sock, buf, n);
++                       }
++                       fprintf(stderr, "%s", "server waits for client\n");
++                       waitpid(fuzz_client, 0, 0);
++                       close(client_sock);
++                       close(serv_sock);
++                       fprintf(stderr, "%s", "finish server\n");
++                       exit(0);
++               }
++       }
++
+        while (!srv_shutdown) {
+ 
++               pid_t fuzz_child = waitpid(fuzz_server, 0, WNOHANG);
++               if (fuzz_child != 0) { exit(0); }
++
+                if (handle_sig_hup) {
+                        handle_sig_hup = 0;
+                        server_handle_sighup(srv);
+@@ -2080,6 +2177,7 @@ int main (int argc, char ** argv) {
+         }
+ 
+         rc = server_main_setup(srv, argc, argv);
++               __AFL_INIT();
+

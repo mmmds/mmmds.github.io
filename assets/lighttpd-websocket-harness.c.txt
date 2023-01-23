@@ -1,0 +1,62 @@
+diff --git a/../lighttpd-1.4.65-clean/src/server.c b/src/server.c
+index e4405dd..7b9b0ac 100644
+--- a/../lighttpd-1.4.65-clean/src/server.c
++++ b/src/server.c
+@@ -105,6 +105,16 @@ static size_t malloc_top_pad;
+ /* #define USE_ALARM */
+ #endif
+ 
++#include <netdb.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <sys/socket.h>
++
++static int fuzz = 0;
++
+ static int oneshot_fd = 0;
+ static int oneshot_fdout = -1;
+ static fdnode *oneshot_fdn = NULL;
+@@ -1967,6 +1977,34 @@ static void server_main_loop (server * const srv) {
+ 
+        while (!srv_shutdown) {
+ 
++               {
++                       int sockfd;
++                       if (fuzz == 0) {
++                               struct sockaddr_in servaddr;
++                               sockfd = socket(AF_INET, SOCK_STREAM, 0);
++                               bzero(&servaddr, sizeof(servaddr));
++                               servaddr.sin_family = AF_INET;
++                               servaddr.sin_addr.s_addr = inet_addr("127.0.0.1");
++                               servaddr.sin_port = htons(atoi(getenv("FUZZPORT")));
++                               connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr));
++
++                               char buf[102400] = {0};
++                               FILE *f = fopen(getenv("FUZZINPUTFILE"), "rb");
++                               int n = fread(buf, 1, 102400, f);
++                               fclose(f);  
++                               write(sockfd, buf, n);
++                               fuzz = 1;
++                       } else if (fuzz == 1) {
++                               char buf[80] = {0};
++                               read(sockfd, buf, sizeof(buf));
++                               close(sockfd);
++                               exit(0);
++                       }
++               }
++
+                if (handle_sig_hup) {
+                        handle_sig_hup = 0;
+                        server_handle_sighup(srv);
+@@ -2074,15 +2112,18 @@ int main (int argc, char ** argv) {
+     do {
+         server * const srv = server_init();
+ 
+         if (graceful_restart) {
+             server_sockets_restore(srv);
+             optind = 1;
+         }
+ 
+         rc = server_main_setup(srv, argc, argv);
++        __AFL_INIT();
