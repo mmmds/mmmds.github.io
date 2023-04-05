@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>CyberGhostVPN - the story of finding MITM, RCE, LPE in the Linux client – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a> |
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>CyberGhostVPN - the story of finding MITM, RCE, LPE in the Linux client</h1>
+	<div><span class="post_list_date">2023-04-03</span></div>
+ 	<div class="entry">
+   	<p>CyberGhost is a company that provides VPN services to individual users. They support many popular platforms, including Windows, macOS, and Linux. As a Linux user, I was particularly interested in their Linux application and decided to take a closer look at this version of their software. During my analysis, I discovered vulnerabilities that could be exploited to achieve local privilege escalation, remote code execution on the user’s machine, or to control the victim’s network traffic.</p>
+
+<p>This article discloses the vulnerabilities that were present in the CyberGhostVPN Linux 1.3.5 client (and versions below). The latest version of the CyberGhostVPN Linux client is now free from these vulnerabilities.</p>
+
+<h2 id="introduction">Introduction</h2>
+
+<p>Before we delve into the details of specific vulnerabilities, it may be useful to briefly explain how the CyberGhost VPN Linux client works.</p>
+
+<p>Every CyberGhost user has an account that is used to log in to the management web panel to manage their subscription and download the client for their desired platform. Once the client is installed, the same account is used to log in to the client.</p>
+
+<p>users can select their desired VPN server by specifying criteria such as service type (OpenVPN or Wireguard), country, city, and server type (traffic, streaming, or torrent). Depending on the service type selected, a different underlying protocol is used, and different paths in the code are executed.</p>
+
+<p>When a user decides to connect to the VPN, two important things happen:</p>
+<ol>
+  <li>The client sends an authenticated request to the CyberGhost API to fetch the VPN configuration.</li>
+  <li>The client executes the locally installed VPN software (OpenVPN or Wireguard) with the downloaded configuration.</li>
+</ol>
+
+<p>After these two steps, the user’s machine is connected to one of the CyberGhost VPN servers, and all network traffic is routed through it.</p>
+
+<p>Here’s an example command to connect:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ sudo cyberghostvpn --connect --wireguard --country-code CZ
+Prepare Wireguard connection ...
+Select server ... prague-s402-i11
+Connecting ... 
+VPN connection established.
+</code></pre></div></div>
+
+<h2 id="dissecting-the-client">Dissecting the client</h2>
+<p>The client is delivered as an ELF executable, so there is no source code available. Fortunately, it is written in Python, which can be decompiled to a form that, in many cases, resembles the original source code.</p>
+
+<p>To accomplish this, a few tools will come in handy:</p>
+<ul>
+  <li><a href="https://github.com/extremecoders-re/pyinstxtractor">pyinstxtractor</a> - to extract Python bytecode (.pyc files) from the binary. When running the tool, it is important to use the same Python version that was used to compile the binary.</li>
+  <li>Decompiler - to translate bytecode into Python code (.pyc to .py). Depending on the Python version, one of these two tools will give better results.
+      - <a href="https://pypi.org/project/uncompyle6/">uncompyle6</a> for Python 3.6 and below.
+      - <a href="https://pypi.org/project/decompyle3">decompyle3</a> for Python 3.7 and 3.8.</li>
+</ul>
+
+<p>So, how do we determine the Python version?</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ strings cyberghostvpn | grep python3
+blibpython3.8.so.1.0
+4libpython3.8.so.1.0
+</code></pre></div></div>
+
+<p>With this information, the two steps will give us the code.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ python3.8 ~/pyinstxtractor/pyinstxtractor.py cyberghostvpn
+[+] Processing cyberghostvpn
+[+] Pyinstaller version: 2.1+
+[+] Python version: 3.8
+[+] Length of package: 8255126 bytes
+[+] Found 60 files in CArchive
+[+] Beginning extraction...please standby
+[+] Possible entry point: pyiboot01_bootstrap.pyc
+[+] Possible entry point: pyi_rth_multiprocessing.pyc
+[+] Possible entry point: pyi_rth_certifi.pyc
+[+] Possible entry point: cyberghostvpn.pyc
+[+] Found 470 files in PYZ archive
+[+] Successfully extracted pyinstaller archive: cyberghostvpn
+$ decompyle3 -o out -r cyberghostvpn_extracted 
+</code></pre></div></div>
+
+<h2 id="mitm--rce">MITM + RCE</h2>
+
+<p>This case is based on two vulnerabilities that can be chained together to achieve code execution by a man-in-the-middle attacker. It has been agreed with the vendor that technical details that could be used to reproduce the exploit will be omitted to protect users who have not yet patched their clients. Despite these limitations, I would like to present a high-level overview of the issues and possible ways of exploitation.</p>
+
+<h3 id="issue-1---lack-of-certificate-validation">Issue 1 - Lack of certificate validation.</h3>
+
+<p>The client always connects to the API over HTTPS. However, in one specific case, the communication had certificate validation disabled. The affected endpoint happened to be responsible for fetching connection details (hostname, port, key) of a chosen Wireguard server.</p>
+
+<p>This alone is enough to make the client trust an illegitimate server imitating the API. The server could return connection details to a malicious Wireguard server, and the client would connect to it. The user would think that they’re connected to the legitimate CyberGhost Wireguard VPN server, but in fact, their entire traffic would be routed through the malicious server. Such traffic could be analyzed or modified by the threat actor conducting the attack.</p>
+
+<p>The only prerequisite to conduct the attack is to make the client connect to the illegitimate API. This prerequisite requires an attacker to have the ability to successfully conduct a DNS cache poisoning attack, or to perform ARP spoofing if they’re on the same local network. Malicious ISPs and hackers exploiting intermediate network devices or DNS servers are also in a perfect position to redirect the traffic.</p>
+
+<h3 id="issue-2---command-injection">Issue 2 - Command injection</h3>
+
+<p>The client parses a response from the endpoint mentioned above and prepares a Wireguard configuration file. The file was generated by issuing a shell command that was filled with connection details without proper sanitization.</p>
+
+<p>In a typical scenario, it’s not a problem because connection details are controlled by CyberGhost and could be trusted. It becomes a problem when we consider the first issue. The illegitimate API instead of providing details of its own Wireguard server could respond with a command injection payload. The payload would be executed on the user’s machine with root privileges. It would give the threat actor full control over the machine.</p>
+
+<h3 id="demo">Demo</h3>
+
+<p>Below I present two videos demonstrating exploitation. A victim on the left, an attacker on the right. For simplicity, the described prerequisite condition is already met and is not covered in the videos.</p>
+
+<p>1. Exploitation of issue 1. The client communicates with a malicious API and then connects to a malicious VPN server.</p>
+
+<iframe class="video" src="https://drive.google.com/file/d/11aGBr-n0e0szL1BO7jWdvllleUUoGkk3/preview" width="640" height="480" allowfullscreen="true"></iframe>
+
+<p>2. Exploitation of issues 1 and 2. The client communicates with a malicious API. The API serves a payload that is executed on the victim’s machine and sets up a reverse shell connection.</p>
+
+<iframe class="video" src="https://drive.google.com/file/d/14x3aKdFK7aVrKlcQkmI9pAkVcjHR-66M/preview" width="640" height="480" allowfullscreen="true"></iframe>
+
+<h2 id="local-privilege-escalation">Local Privilege Escalation</h2>
+
+<p>In this case, I can provide more technical details. As I didn’t know what to expect from the code, I decided to find out how the client interacts with the operating system. By searching for occurrences of <code class="language-plaintext highlighter-rouge">os.system</code> and <code class="language-plaintext highlighter-rouge">subprocess.Popen</code>, I came across a helper function used throughout the entire client.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ grep -C 5 -r 'os\.system\|subprocess\.Popen'
+[...]
+PYZ-00.pyz_extracted/libs/helpers.py:    def executeCommand(self, command: str):
+PYZ-00.pyz_extracted/libs/helpers.py-        try:
+PYZ-00.pyz_extracted/libs/helpers.py-            ps = subprocess.Popen(command, shell=True, stdout=(subprocess.PIPE), stderr=(subprocess.PIPE))
+PYZ-00.pyz_extracted/libs/helpers.py-            output, errors = ps.communicate(timeout=60)
+PYZ-00.pyz_extracted/libs/helpers.py-        except subprocess.TimeoutExpired:
+PYZ-00.pyz_extracted/libs/helpers.py-            ps.kill()
+[...]
+</code></pre></div></div>
+
+<p>From there, I easily navigated to the first suspicious line of code in the wireguard-related function:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>def __addKey(self, publicKey, hostname):
+    token = self.getConfig('device', 'token')
+    secret = self.getConfig('device', 'secret')
+    command = 'curl [...] --user "' + token + ':' + secret + [...] + '" "https://' + hostname + ':1337/addKey"'
+    proc = Helpers().executeCommand(command)
+</code></pre></div></div>
+
+<p>By looking at the command, it was obvious that if either <code class="language-plaintext highlighter-rouge">token</code> or <code class="language-plaintext highlighter-rouge">secret</code> could be controlled, they would allow the injection of additional commands to execute. Both of them are read from a user-specific configuration file: <code class="language-plaintext highlighter-rouge">$HOME/.cyberghost/config.ini</code>, which is created during installation.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ ls -la ~/.cyberghost/config.ini 
+-rwx------ 1 user user 207 Dec 20 19:03 /home/user/.cyberghost/config.ini
+</code></pre></div></div>
+
+<p>A user has permissions to modify the file and inject their own commands. However, what is the point since the code will be executed locally, and the client has to be executed with sudo? In the standard configuration, it doesn’t make much sense, but in the case of non-standard configuration, this injection could be used to locally escalate privileges.</p>
+
+<h3 id="demo-1">Demo</h3>
+
+<p>Let’s say we have an unprivileged user in our system who should be allowed to initiate a connection to the VPN. Sudo could be configured in a way that the unprivileged user could run only the CyberGhostvpn command with elevated privileges. Attempts to run any other command would be prevented.</p>
+
+<p>In such a scenario, the unprivileged user modifies their configuration file <code class="language-plaintext highlighter-rouge">.cyberghost/config.ini</code> and puts a payload in <code class="language-plaintext highlighter-rouge">token</code>, and then tries to initiate a connection. The connection fails because the injected command breaks the original <code class="language-plaintext highlighter-rouge">curl</code> invocation. But at this point, the “unprivileged” user has root privileges in the system.</p>
+
+<iframe class="video" src="https://drive.google.com/file/d/1HH80pbsOO9pgCeKKiu_ZEj7rzK1eSvM4/preview" width="640" height="480" allowfullscreen="true"></iframe>
+
+<h2 id="summary">Summary</h2>
+
+<p>The vulnerabilities were found in the CyberGhostVPN Linux client version 1.3.5 (and versions below) and were reported to the vendor through the BugCrowd platform. The issues are fixed in the newest version of the client (1.4.1). The client does not have an auto-update feature, so users must manually download and install it.</p>
+
+<p>If, for some reason, it is impossible to update the client, the exploitation of MITM and RCE issues could be mitigated by using the OpenVPN service type, for example, <code class="language-plaintext highlighter-rouge">sudo cyberghostvpn --connect --openvpn --country-code CZ</code>.</p>
+
+<p>I worked closely with the CyberGhostVPN team to report and remediate the vulnerabilities identified, and the CyberGhostVPN team had the following to say:</p>
+<blockquote>
+We are delighted with the research performed by mmmds into our Linux application, and thank him for his efforts. Collaboration in the cybersecurity community is critical for keeping our users safe from all and any potential attack vectors. In this spirit, we are committed to continued transparency and partnership with all researchers on our bug bounty platform, and will continue providing our customers with world class protection.
+</blockquote>
+
+<h2 id="timeline">Timeline</h2>
+
+<ul>
+  <li>01.12.2022: vulnerabilities reported</li>
+  <li>02.12.2022: the report acknowledged by the vendor</li>
+  <li>07.12.2022: vulnerabilities confirmed by the vendor</li>
+  <li>24.12.2022: CyberGhostVPN Linux 1.4.0 released with a fix for remote code execution and privilege escalation</li>
+  <li>22.02.2023: CyberGhostVPN Linux 1.4.1 released with certificate pinning</li>
+  <li>06.03.2023: vendor notifies me that the issues have been fully addressed</li>
+  <li>03.04.2023: vulnerabilities disclosed in coordination with the vendor</li>
+</ul>
+
+<h2 id="references">References</h2>
+
+<ul>
+  <li><a href="https://bugcrowd.com/disclosures/98117b52-679b-4745-8719-d8771be3d3f6/linux-client-lack-of-certificate-validation-leading-to-rce">https://bugcrowd.com/disclosures/98117b52-679b-4745-8719-d8771be3d3f6/linux-client-lack-of-certificate-validation-leading-to-rce</a></li>
+</ul>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/cyberghostvpn-mitm-rce-lpe/',
+		  'title': 'CyberGhostVPN - the story of finding MITM, RCE, LPE in the Linux client'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
