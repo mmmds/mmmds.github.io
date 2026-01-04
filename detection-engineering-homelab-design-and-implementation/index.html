@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Detection engineering homelab - design and implementation – mmmds's blog</title>
+    
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="stylesheet" type="text/css" href="/style.css" />
+  </head>
+
+
+  <body>
+	<div class="container">
+        <header>
+		<div id="logo">mmmds's blog</div>	
+         	<nav>|
+            	<a href="/">posts</a>
+				|
+            	<a href="/projects/">projects</a>
+				|
+            	<a href="/about/">about</a> |
+        	</nav>
+        </header>
+      </div>
+    </div>
+    <div id="main" role="main" class="container">
+      <article class="post">
+ 	<h1>Detection engineering homelab - design and implementation</h1>
+	<div><span class="post_list_date">2026-01-04</span></div>
+ 	<div class="entry">
+   	<p><strong>tl;dr</strong>: A homelab for practicing attack and defense, with a focus on detection engineering.</p>
+
+<h2 id="introduction">Introduction</h2>
+
+<p>This post introduces a lab environment I am building for practicing attack and defense techniques. The goal is to design a modular lab where individual assets can be attacked, monitored, and defended, allowing both offensive and defensive aspects of a scenario to be analyzed side by side.</p>
+
+<p>In future posts, I plan to walk through complete scenarios. From the attacker’s perspective, this will include identifying and exploiting a vulnerability in a target asset. From the defender’s perspective, the focus will be on how the same activity is reflected in collected telemetry and which detections can be implemented.</p>
+
+<p>The lab supports offensive exercises, but its main focus is detection engineering. Attacks serve to generate realistic activity, emphasizing telemetry quality, signal fidelity, and correlation into actionable detections, rather than exploitation itself.</p>
+<h2 id="requirements">Requirements</h2>
+
+<p>Before jumping right into building, I wrote down a clear set of expectations for the lab. Defining these requirements helped me stay focused on the design and implementation. Without them, it would have been easy to spend time on features that are unnecessary for the intended use case or on components that are difficult to maintain.</p>
+
+<p>The lab should meet the following requirements:</p>
+<ul>
+  <li>use free and open-source components, without activation, licenses, or time-limited trials</li>
+  <li>support fully automated, non-interactive installation and configuration</li>
+  <li>rely on components commonly used in real-world environments</li>
+  <li>be modular, with independent scenarios that can be added or removed in the future</li>
+</ul>
+
+<h2 id="design">Design</h2>
+
+<h3 id="design-overview">Design overview</h3>
+<p>Based on the defined requirements, I prepared a design with three main layers:</p>
+<ul>
+  <li><strong>bootstrapping and host configuration</strong> - everything necessary to prepare the host to run the lab</li>
+  <li><strong>base lab environment</strong> - the minimal set of components that the lab consists of</li>
+  <li><strong>lab scenarios</strong> - additional components deployed for specific attack and defense scenarios</li>
+</ul>
+
+<p>I was not able to fully meet all defined requirements. When selecting or configuring some components, I made trade-offs in favor of simpler implementation or to experiment with specific software.</p>
+
+<h3 id="platform-and-automation">Platform and automation</h3>
+
+<p>The lab is designed to run on a Linux host using KVM. From the host’s perspective, the lab is a set of virtual machines. VM provisioning and post-installation configuration are automated using Ansible.</p>
+
+<h3 id="base-components">Base components</h3>
+
+<p>To achieve a minimally functional lab, the following components are necessary:</p>
+<ul>
+  <li><strong>pfSense</strong> - serving as a router, implementing VLANs, monitoring network traffic, and providing DHCP and DNS services with a configured domain (<code class="language-plaintext highlighter-rouge">nest.lan</code>), so VMs can be reached using their fully qualified domain names (FQDNs)</li>
+  <li><strong>Wazuh</strong> - used for telemetry collection from other VMs</li>
+  <li><strong>ELK</strong> - ingesting logs from Wazuh, used for advanced queries and detection</li>
+  <li><strong>Velociraptor</strong> - used for collecting custom data when Wazuh telemetry is not sufficient</li>
+</ul>
+
+<h3 id="scenario-assets">Scenario assets</h3>
+
+<p>For scenarios, I selected a few common types of assets:</p>
+<ul>
+  <li>a <strong>Linux web server</strong> with a web application vulnerable to command injection, with optional WAF protection (<code class="language-plaintext highlighter-rouge">web-01</code>)</li>
+  <li>a <strong>Kubernetes cluster</strong> with a web application vulnerable to command injection (<code class="language-plaintext highlighter-rouge">k8s-01</code>, <code class="language-plaintext highlighter-rouge">k8s-02</code>)</li>
+  <li>an <strong>Active Directory</strong> environment consisting of a domain controller and a web server (<code class="language-plaintext highlighter-rouge">dc-01</code>, <code class="language-plaintext highlighter-rouge">win-web-01</code>)</li>
+  <li>a <strong>Kali Linux</strong> machine for conducting attacks</li>
+</ul>
+
+<h3 id="network-segmentation">Network segmentation</h3>
+<p>VMs will be placed in VLANs with restricted network reachability:</p>
+<ul>
+  <li><strong>VLAN 1</strong> - domain controller</li>
+  <li><strong>VLAN 2</strong> - monitoring (Wazuh, ELK, Velociraptor)</li>
+  <li><strong>VLAN 3</strong> - servers</li>
+  <li><strong>VLAN 4</strong> - unused (reserved for future workstations)</li>
+  <li><strong>VLAN 5</strong> - untrusted network, serving as the source of attacks (Kali)</li>
+</ul>
+
+<p><a href="/images/lab1_diagram.png"><img src="/images/lab1_diagram.png" alt="network diagram" /></a></p>
+
+<h3 id="tradeoffs">Tradeoffs</h3>
+
+<p>As mentioned earlier, I made some tradeoffs that diverge from the defined requirements. Writing them down helped me rationalize my choices but it also serves as a documentation for readers and my future self.</p>
+
+<ol>
+  <li><strong>pfSense automation</strong> - pfSense doesn’t support fully automated setup. Installation of the OS and configuration via web interface require interactive steps. However, its features like subnets, firewall, Suricata integration were important for experimentation. Configuration can be exported and imported, so redeployment does not require repeating all steps. I also considered VyOS, which supports automated installation and configuration, but learning VyOS would require more time investment. If automation becomes a bottleneck, the modular lab design allows switching to VyOS later.</li>
+  <li><strong>Wazuh vs. ELK</strong> - I was initially on the fence which would be the better choice, as both have interesting qualities. Wazuh has file integrity monitoring, vulnerability detection, and predefined alerts out of the box, on the other hand ELK supports more advanced queries and alerts. Although this increases the lab’s complexity, it allows me to get more experience with both and learn more about their differences. I also considered Splunk which offers powerful querying capabilities, but it’s a commercial software. Its trial license is limited in alerting and data ingestion, making it less suitable for my detection practicing goals.</li>
+  <li><strong>Active Directory</strong> - running Windows Server is not free but there is a trial version available. Setting up a trial Windows machine can be fully automated, so even after the trial ends, this part of the lab can be redeployed without much effort.</li>
+</ol>
+
+<h3 id="threat-model">Threat Model</h3>
+
+<p>The attacker is assumed to have the following capabilities:</p>
+<ul>
+  <li>Network access from an untrusted subnet (Kali Linux in VLAN 5)</li>
+  <li>No initial credentials</li>
+  <li>Ability to perform reconnaissance and exploit exposed services</li>
+  <li>Ability to move laterally once initial access is achieved</li>
+</ul>
+
+<h2 id="implementation">Implementation</h2>
+
+<p>The repository with all the code is available on <a href="https://github.com/mmmds/detection-homelab">GitHub</a>. Here I describe the most important parts. Each part is implemented as a separate Ansible playbook.</p>
+
+<ul>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/bootstrap.yaml">Bootstrap playbook</a> - steps performed directly on the host, including:
+    <ul>
+      <li>configuring networks using <code class="language-plaintext highlighter-rouge">virsh</code></li>
+      <li>configuring SSH to simplify connections from the host</li>
+      <li>downloading operating system ISO files (Windows Server 2022, Ubuntu Server 24, pfSense, Kali Linux)</li>
+      <li>downloading tools (Velociraptor, Sysmon, ELK, Ubuntu Autoinstall Generator)</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/wazuh_provision.yaml">VM provision playbook</a> - each VM (wazuh, elk, web-01 etc.) has its own playbook that executes the same steps with different parameters (VM name, disk size, memory size, network interface, etc.):
+    <ul>
+      <li>creating a QEMU disk</li>
+      <li>preparing an OS auto-installer ISO (Linux or Windows)</li>
+      <li>creating a VM with previously created disk and booting it with the OS auto-installer ISO</li>
+      <li>waiting until the OS installation process completes</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/wazuh_configuration.yaml">Wazuh VM configuration playbook</a> - configures a running Wazuh VM:
+    <ul>
+      <li>installing Wazuh server</li>
+      <li>configuring Wazuh (enabling <code class="language-plaintext highlighter-rouge">logall</code> feature, enabling Filebeat for ELK integration)</li>
+      <li>installing Velociraptor server (for simplicity it runs on the same VM)</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/elk_configuration.yaml">ELK VM configuration playbook</a> - configures a running ELK VM:
+    <ul>
+      <li>installing docker</li>
+      <li>copying the ELK installer downloaded by the bootstrap playbook</li>
+      <li>preparing ELK configuration files (disabling premium features, connecting to Wazuh using two ingest pipelines: one for archived logs and another for alerts)</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/web-01_configuration.yaml">web-01 VM configuration playbook</a> - sets up the Linux web server:
+    <ul>
+      <li>installing auditd, Wazuh agent, and Velociraptor agent</li>
+      <li>installing dependencies for the web application (python3, flask)</li>
+      <li>installing nginx and WAF (ModSecurity rules)</li>
+      <li>deploying the web application behind the reverse proxy</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/k8s-01_configuration.yaml">k8s-01 VM configuration playbook</a> - sets up the Kubernetes master node:
+    <ul>
+      <li>installing auditd, Wazuh agent, and Velociraptor agent</li>
+      <li>installing and starting MicroK8s</li>
+      <li>configuring Fluentbit for log enrichment</li>
+      <li>installing Falco</li>
+      <li>deploying the web application as a pod</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/k8s-02_configuration.yaml">k8s-02 VM configuration playbook</a> - sets up the Kubernetes worker node:
+    <ul>
+      <li>installing auditd, Wazuh agent, and Velociraptor agent</li>
+      <li>installing MicroK8s and joining the cluster</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/dc-01_configuration.yaml">dc-01 VM configuration playbook</a> - sets up the domain controller
+    <ul>
+      <li>installing Sysmon, Wazuh agent, and Velociraptor agent</li>
+      <li>configuring Windows Firewall and DNS forwarder</li>
+      <li>creating a domain</li>
+    </ul>
+  </li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/playbooks/win-web-01_configuration.yaml">win-web-01 VM configuration playbook</a> - sets up the Windows web server:
+    <ul>
+      <li>installing Sysmon, Wazuh agent, and Velociraptor agent</li>
+      <li>installing IIS</li>
+      <li>joining the domain</li>
+    </ul>
+  </li>
+</ul>
+
+<h3 id="code-reuse">Code reuse</h3>
+<p>To avoid repeating the same steps across multiple VMs, reusable tasks are implemented as Ansible roles and parameterized. Some examples of roles:</p>
+<ul>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/roles/wazuh_client/tasks/main.yaml">installing Wazuh agent on Linux</a></li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/roles/windows_monitoring/tasks/main.yaml">installing Wazuh agent on Windows</a></li>
+  <li><a href="https://github.com/mmmds/detection-homelab/blob/master/roles/kvm_create_vm/tasks/main.yaml">creating a VM</a></li>
+</ul>
+
+<h2 id="detection">Detection</h2>
+
+<p>One of the main aspects of the lab is detection, so choosing appropriate log sources, deploying agents and viewing collected data is worth describing in a separate section.</p>
+<h3 id="linux">Linux</h3>
+<p>Linux machines are running a Wazuh agent. Besides its default configuration, it’s additionally configured to collect logs from:</p>
+<ul>
+  <li><strong>auditd</strong> (<code class="language-plaintext highlighter-rouge">/var/log/audit/audit.log</code> file) which is specifically configured to monitor changes in configuration files and program executions</li>
+  <li><strong>apt history</strong> (<code class="language-plaintext highlighter-rouge">/var/log/apt/history.log</code> file)</li>
+  <li><strong>nginx</strong> (<code class="language-plaintext highlighter-rouge">/var/log/nginx/access.log</code> and <code class="language-plaintext highlighter-rouge">/var/log/nginx/error.log</code> files)</li>
+  <li><strong>ModSecurity / WAF</strong> (<code class="language-plaintext highlighter-rouge">/var/log/nginx/modsec_audit.log</code> file)</li>
+</ul>
+
+<p>Ansible task responsible for configuring auditd:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- name: Deploy auditd rules
+  copy:
+    dest: /etc/audit/rules.d/audit.rules
+    content: |
+      -D
+      -w /etc/ -p wa -k config_changes
+      -w /var/lib/systemd/ -p wa -k config_changes
+      -w /root/ -p wa -k root_changes
+      -a exit,always -F arch=b64 -S execve -k exec_commands
+      -a exit,always -F arch=b32 -S execve -k exec_commands
+  notify:
+    - Restart auditd
+    - Reload audit rules
+</code></pre></div></div>
+
+<h3 id="kubernetes">Kubernetes</h3>
+<p>There are also Kubernetes-related logs that are worth looking at. Wazuh will collect the following logs:</p>
+<ul>
+  <li><strong>Kubernetes audit logs</strong> generated by Kubernetes API usage</li>
+  <li><strong>container logs</strong> enriched with relevant metadata using FluentBit</li>
+  <li><strong>Falco alerts</strong> of suspicious activities within a cluster</li>
+</ul>
+
+<p>If Wazuh was collecting raw container logs, then it would be difficult to correlate them with the pod that emitted it. By using FluentBit, Wazuh will collect logs that include additional metadata like pod name, namespace, container image that in case of an incident, will allow to track down the affected asset.</p>
+
+<p>Raw container log:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>2025-12-30T15:54:08.55449382+01:00 stderr F INFO:root:Starting the service
+</code></pre></div></div>
+
+<p>The same log enriched by FluentBit:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>{
+    "time": "2025-12-30T15:54:08.55449382+01:00",
+    "stream": "stderr",
+    "flags": "F",
+    "log": "INFO:root:Starting the service",
+    "kubernetes":
+    {
+        "pod_name": "ping-api-4bw6l",
+        "namespace_name": "default",
+        "pod_id": "e9366a07-e0bf-4eab-8ff7-2c20fdd4fea0",
+        "labels":
+        {
+            "app": "ping-api",
+            "controller-revision-hash": "6847f66956",
+            "pod-template-generation": "4"
+        },
+        "annotations":
+        {
+            "cni.projectcalico.org/containerID": "e79ab9b3a0c254a0eaf378f49866b0797228ac7f9783e47c4083b531a7bfdc16",
+            "cni.projectcalico.org/podIP": "10.1.61.206/32",
+            "cni.projectcalico.org/podIPs": "10.1.61.206/32",
+            "kubectl.kubernetes.io/restartedAt": "2025-12-28T21:11:42+02:00"
+        },
+        "host": "k8s-01",
+        "pod_ip": "10.1.61.206",
+        "container_name": "ping-api",
+        "docker_id": "0eddb95ce4c6df673639571a774643b801e08054d8b3a8dca1998abfc34095e8",
+        "container_hash": "k8s-01.nest.lan:32000/ping-api@sha256:43d87a8f2f4367307c894d98032165209204350eca8e444959f6b264b2929bd1",
+        "container_image": "k8s-01.nest.lan:32000/ping-api:latest"
+    }
+}
+</code></pre></div></div>
+
+<h3 id="windows">Windows</h3>
+<p>Wazuh collects Windows event logs as a core source of telemetry. In the lab this is extended by using:</p>
+<ul>
+  <li><strong>custom audit policies</strong> enabling additional events (based on <a href="https://github.com/Starke427/Windows-Security-Policy/blob/master/configure_audit_policy.ps1">Starke427’s Windows Security Policy</a>)</li>
+  <li><strong>Sysmon</strong> producing additional security-related logs (based on <a href="https://github.com/NextronSystems/sysmon-config">NextronSystems’s sysmon config</a>)</li>
+</ul>
+
+<p>Ansible Task enabling collection of Sysmon produced logs:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>- name: Configure sysmon in wazuh
+  community.windows.win_lineinfile:
+    path: 'C:\Program Files (x86)\ossec-agent\ossec.conf'
+    insertafter: '&lt;ossec_config&gt;'
+    line: |
+      &lt;localfile&gt;
+        &lt;log_format&gt;eventchannel&lt;/log_format&gt;
+        &lt;location&gt;Microsoft-Windows-Sysmon/Operational&lt;/location&gt;
+      &lt;/localfile&gt;
+    create: no
+  when: sysmon_line_check.stdout == ""
+  notify: Restart wazuh
+</code></pre></div></div>
+
+<h3 id="pfsense">pfSense</h3>
+<p>pfSense being a central point of network communication between VMs (or subnets to be more specific) is a great source of network telemetry. pfSense has a firewall that writes packet filtering decisions to <code class="language-plaintext highlighter-rouge">/var/log/filter.log</code>.  It also supports additional functionalities through a Package system. For the purpose of this lab I added Suricata and configured Wazuh to collect logs from it.</p>
+
+<p><img src="/images/lab1_suricata.png" alt="pfsense suricata" /></p>
+
+<p>Wazuh configuration to collect logs from firewall and Suricata:</p>
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;localfile&gt;
+    &lt;log_format&gt;json&lt;/log_format&gt;
+    &lt;location&gt;/var/log/suricata/*/eve.json&lt;/location&gt;
+&lt;/localfile&gt;
+&lt;localfile&gt;
+    &lt;log_format&gt;syslog&lt;/log_format&gt;
+    &lt;location&gt;/var/log/filter.log&lt;/location&gt;
+&lt;/localfile&gt;
+</code></pre></div></div>
+
+<h2 id="overview">Overview</h2>
+
+<p>After deploying the lab through Ansible playbooks, we can see in Wazuh and Velociraptor dashboards that agents are connected and in ELK that logs are being collected and can be queried.</p>
+
+<p>Wazuh:
+<a href="/images/lab1_wazuh.png"><img src="/images/lab1_wazuh.png" alt="wazuh dashboard" /></a></p>
+
+<p>Velociraptor:
+<a href="/images/lab1_velociraptor.png"><img src="/images/lab1_velociraptor.png" alt="velociraptor dashboard" /></a></p>
+
+<p>ELK:
+<a href="/images/lab1_elk.png"><img src="/images/lab1_elk.png" alt="elk query logs" /></a></p>
+
+<h2 id="summary">Summary</h2>
+<p>This post was an introduction to the lab design, implementation, and deployment. It is ready for conducting attacks and responding to them. Next posts will be focused on specific scenarios from both attacker and defender perspective.</p>
+
+ 	</div>
+</article>
+
+    </div>
+<footer><hr></footer>
+    
+	<!-- Google Analytics -->
+	<script>
+		(function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+		(i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+		m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+		})(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+		ga('create', 'UA-89484033-1', 'auto');
+		ga('send', 'pageview', {
+		  'page': '/detection-engineering-homelab-design-and-implementation/',
+		  'title': 'Detection engineering homelab - design and implementation'
+		});
+	</script>
+	<!-- End Google Analytics -->
+
+
+  </body>
+
+</html>
